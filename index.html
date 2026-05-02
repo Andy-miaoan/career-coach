@@ -3,8 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI职业陪跑系统 — 安迪 AI调度师</title>
-<link rel="stylesheet" href="css/styles.css">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;">
+<title>安迪AI 陪跑工作台</title>
+<link rel="stylesheet" href="css/styles.css?v=4">
+<style>
+  .module-content { max-width:1200px !important; margin:0 auto !important; }
+  #mainApp { width:100%; }
+</style>
 </head>
 <body>
 
@@ -13,15 +18,15 @@
      ============================================================ -->
 <div class="login-overlay" id="loginScreen">
     <div class="login-card">
-        <div class="brand">安迪 AI调度师</div>
-        <h2>职业陪跑系统</h2>
+        <div class="brand">安迪AI 陪跑工作台</div>
+        <h2>AI 职业陪跑</h2>
         <div class="subt">从诊断定位到入职落地<br>覆盖职业发展全周期的AI陪跑系统</div>
         <div class="ref-tag" id="refTag" style="display:none">推荐人：<span id="refName"></span></div>
         <input type="text" id="activationInput" placeholder="请输入激活码" maxlength="200" autocomplete="off">
         <div class="login-hint" id="loginHint" style="display:none" onclick="fillLastCode()" title="点击填入上次使用的激活码">上次使用：<span id="lastCodeHint"></span></div>
         <div class="login-err" id="loginErr"></div>
         <button class="btn btn-activate" id="activateBtn" onclick="activate()">激活使用</button>
-        <div class="login-info">还没有激活码？<br>加微信：miaoan1913 获取<br><br>月卡 ￥299(30天) · 季卡 ￥799(90天) · 年卡 ￥2999(365天)<br><br><span id="syncStatusLogin" onclick="showTokenSetup()">设置云端同步（跨设备共享）</span></div>
+        <div class="login-info">还没有激活码？<br>加微信：miaoan1913 获取<br><br>月卡 ￥499(30天/20次) · 季卡 ￥1199(90天/70次) · 年卡 ￥4999(365天/300次)<br><br><span id="syncStatusLogin" onclick="showTokenSetup()">设置云端同步（跨设备共享）</span></div>
     </div>
 </div>
 
@@ -49,8 +54,8 @@
 <!-- Header -->
 <header class="app-header">
   <div class="header-left">
-    <span class="header-logo-text">🎯 职业陪跑</span>
-    <span class="header-brand-text">安迪 AI调度师 · Career OS</span>
+    <span class="header-logo-text">🎯 AI 职业陪跑</span>
+    <span class="header-brand-text">安迪AI 陪跑工作台 · AI 职业陪跑</span>
   </div>
   <div class="header-right">
     <span class="header-user" id="userName"></span>
@@ -68,12 +73,19 @@
   <div class="sidebar-header">
     <a class="sidebar-logo" href="#" onclick="navTo('positioning')">
       <span class="logo-icon">🎯</span>
-      <span>职业陪跑</span>
+      <span>AI 职业陪跑</span>
     </a>
-    <div class="sidebar-subtitle">安迪 AI调度师 · Career OS v2.0</div>
+    <div class="sidebar-subtitle">安迪AI调度师</div>
   </div>
 
   <nav class="sidebar-nav">
+    <div class="nav-section-title">个人</div>
+
+    <button class="nav-item" data-module="profile" onclick="navTo('profile')">
+      <span class="nav-icon">👤</span>
+      <span>个人档案</span>
+    </button>
+
     <div class="nav-section-title">诊断与定位</div>
 
     <button class="nav-item active" data-module="positioning" onclick="navTo('positioning')">
@@ -112,7 +124,7 @@
   </nav>
 
   <div style="padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 11px; color: #64748b;">
-    v2.1 · 激活码登录 · 云端同步
+    v2.2 · 个人档案 · 瓶颈诊断 · 激活码登录
   </div>
 </aside>
 
@@ -121,80 +133,39 @@
      ============================================================ -->
 <main class="main-content">
 
+  <!-- ========== 模块0：个人档案 ========== -->
+  <section class="module-content" id="module-profile">
+    <div class="module-header">
+      <h1 class="module-title">👤 个人档案</h1>
+      <p class="module-desc">建立你的个人档案后，所有模块的AI指令都将自动包含你的背景信息，让分析更加精准。档案仅保存在本地浏览器和你的云端同步中，不会上传到任何第三方。</p>
+    </div>
+    <div id="profile-container"></div>
+  </section>
+
   <!-- ========== 模块1：职业定位 ========== -->
   <section class="module-content active" id="module-positioning">
     <div class="module-header">
       <h1 class="module-title">🧬 职业定位中心</h1>
-      <p class="module-desc">职业定位是职业发展的起点。从"能力、兴趣、价值观、约束"四个象限建立全景自我认知，配合资产审计、目标澄清和风险识别，为后续所有职业决策提供精准依据。</p>
+      <p class="module-desc">职业定位是职业发展的起点。输入你的背景和能力数据，AI帮你从四个象限全面分析，生成专业的职业定位报告。</p>
     </div>
-
-    <div class="card">
-      <h3>📊 四象限自我评估</h3>
-      <p class="section-note">请用1-5分评估每项描述与你的匹配程度（1=完全不匹配，5=非常匹配）。如实填写才能得到精准的画像。</p>
-      <div id="pos-four-quadrants"></div>
-    </div>
-
-    <div class="card">
-      <h3>💎 职业资产审计</h3>
-      <p class="section-note">除了内在能力，你的外部资产同样重要。请客观评估每项资产的积累程度。</p>
-      <div id="pos-asset-audit"></div>
-    </div>
-
-    <div class="card">
-      <h3>🎯 目标澄清</h3>
-      <div id="pos-goal"></div>
-    </div>
-
-    <div class="card">
-      <h3>⚠️ 风险与约束识别</h3>
-      <div id="pos-risk"></div>
-    </div>
-
-    <button class="btn btn-primary" onclick="generatePositioningReport()" style="width:100%; padding:16px; font-size:16px; margin-bottom:20px;">
-      📋 生成职业定位报告
-    </button>
-    <div id="pos-report" class="report-container" style="display:none;"></div>
+    <div id="positioning-container"></div>
   </section>
 
   <!-- ========== 模块2：职业路线 ========== -->
   <section class="module-content" id="module-roadmap">
     <div class="module-header">
       <h1 class="module-title">🗺️ 职业路线规划</h1>
-      <p class="module-desc">基于职业定位，从三条路径中选出最优解：稳健爬梯、跨界平移、跃迁突破。配套90天冲刺计划和可用时间预算管理。</p>
+      <p class="module-desc">填写你的现状和目标，AI帮你设计3条可选路径，对比风险与收益，并生成90天冲刺计划。</p>
     </div>
-
-    <div class="card">
-      <h3>第一步：行业与岗位匹配</h3>
-      <p class="section-note">选择你感兴趣的行业赛道和目标岗位方向，系统将展示该岗位的能力要求和薪酬基准。</p>
-      <div id="rm-industry-match"></div>
-    </div>
-
-    <div class="card">
-      <h3>第二步：三条路径战略对比</h3>
-      <p class="section-note">每条路径对应不同的转型幅度、风险等级和天花板高度。选择当下最适合你的策略。</p>
-      <div id="rm-path-comparison"></div>
-    </div>
-
-    <div class="card">
-      <h3>第三步：90天冲刺计划</h3>
-      <p class="section-note">选定路径后，将目标拆解为30-60-90天的可执行行动。每周聚焦一个关键里程碑。</p>
-      <div id="rm-sprint"></div>
-    </div>
-
-    <div class="card">
-      <h3>第四步：可用时间预算</h3>
-      <p class="section-note">职业发展需要投入时间。诚实评估你每周能为转型/提升投入多少小时，系统帮你匹配可行方案。</p>
-      <div id="rm-time-budget"></div>
-    </div>
+    <div id="roadmap-container"></div>
   </section>
 
   <!-- ========== 模块3：职业能力 ========== -->
   <section class="module-content" id="module-toolkit">
     <div class="module-header">
       <h1 class="module-title">🧰 职业能力工具箱</h1>
-      <p class="module-desc">四大类模板工具覆盖求职、沟通、决策和复盘场景。每个模板都包含使用场景、填写示例和导出功能，帮助你在关键职业决策时刻做出高质量选择。</p>
+      <p class="module-desc">选择你需要的场景，填写关键信息，AI帮你生成专业的简历、面试话术、谈薪策略或职业决策分析。</p>
     </div>
-
     <div id="toolkit-container"></div>
   </section>
 
@@ -202,106 +173,34 @@
   <section class="module-content" id="module-combat">
     <div class="module-header">
       <h1 class="module-title">⚔️ 职业实战中心</h1>
-      <p class="module-desc">将定位和能力转化为实战成果。五大模块覆盖：技能训练、模拟面试、实战任务、案例库和简历深度分析。</p>
+      <p class="module-desc">简历优化、模拟面试、技能训练和案例学习。输入你的具体情况，AI为你量身定制实战方案。</p>
     </div>
-
-    <div class="card">
-      <h3>🏋️ 技能专项训练</h3>
-      <div id="combat-skills"></div>
-    </div>
-
-    <div class="card">
-      <h3>🎙️ 模拟面试</h3>
-      <div id="combat-interview"></div>
-    </div>
-
-    <div class="card">
-      <h3>📋 实战任务清单</h3>
-      <div id="combat-tasks"></div>
-    </div>
-
-    <div class="card">
-      <h3>📚 案例库</h3>
-      <div id="combat-cases"></div>
-    </div>
-
-    <div class="card">
-      <h3>📝 简历深度分析</h3>
-      <div id="combat-resume"></div>
-    </div>
+    <div id="combat-container"></div>
   </section>
 
   <!-- ========== 模块5：职业复盘 ========== -->
   <section class="module-content" id="module-review">
     <div class="module-header">
       <h1 class="module-title">🔄 职业复盘中心</h1>
-      <p class="module-desc">每周微调、每月深盘、每季度战略复盘。从目标达成、能力成长、职业满意度、行业判断、瓶颈扫描、下阶段规划六个维度系统审视。</p>
+      <p class="module-desc">每周微调、每月深盘。填写你的复盘数据，AI帮你从多个维度系统审视职业发展状况，给出行动建议。</p>
     </div>
-
-    <div class="card">
-      <h3>📋 每周复盘</h3>
-      <div id="review-weekly"></div>
-    </div>
-
-    <div class="card">
-      <h3>📊 数据面板</h3>
-      <div id="review-data"></div>
-    </div>
-
-    <div class="card">
-      <h3>📅 月度战略复盘</h3>
-      <div id="review-monthly"></div>
-    </div>
-
-    <div class="card">
-      <h3>🎓 毕业标准</h3>
-      <div id="review-graduation"></div>
-    </div>
-
-    <div class="card">
-      <h3>📚 复盘历史记录</h3>
-      <div id="review-history-list"></div>
-    </div>
+    <div id="review-container"></div>
   </section>
 
   <!-- ========== 模块6：入职陪跑 ========== -->
   <section class="module-content" id="module-onboarding">
     <div class="module-header">
       <h1 class="module-title">🚀 入职90天陪跑</h1>
-      <p class="module-desc">入职新公司的前90天是最关键的窗口期。这套框架帮你系统化融入新环境：30天站稳、60天产出、90天建立影响力。包含向上管理、向下管理、跨职能关系构建和止损决策框架。</p>
+      <p class="module-desc">入职新公司的前90天是最关键的窗口期。填写你的新岗位信息，AI帮你设计融入计划或诊断当前风险。</p>
     </div>
-
-    <div class="card">
-      <h3>📅 90天陪跑计划</h3>
-      <div id="ob-90day"></div>
-    </div>
-
-    <div class="card">
-      <h3>⬆️ 向上管理策略</h3>
-      <div id="ob-upward"></div>
-    </div>
-
-    <div class="card">
-      <h3>⬇️ 向下管理策略</h3>
-      <div id="ob-downward"></div>
-    </div>
-
-    <div class="card">
-      <h3>↔️ 跨职能关系构建</h3>
-      <div id="ob-cross"></div>
-    </div>
-
-    <div class="card">
-      <h3>🛑 止损决策框架</h3>
-      <div id="ob-stoploss"></div>
-    </div>
+    <div id="onboarding-container"></div>
   </section>
 
 </main>
 
 <!-- Footer -->
 <footer class="app-footer">
-  <span>安迪 AI调度师 · 职业陪跑系统 v2.1</span>
+  <span>安迪AI调度师</span>
   <span>客服微信：miaoan1913</span>
 </footer>
 

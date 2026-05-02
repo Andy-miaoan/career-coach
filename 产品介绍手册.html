@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安迪AI调度师 · AI职业陪跑 — 产品介绍手册</title>
+<style>
+:root {
+  --bg: #0a0e1a; --card: #111827; --border: #1e293b;
+  --primary: #3b82f6; --primary-dark: #2563eb; --primary-light: #1e3a5f;
+  --accent: #8b5cf6; --accent-light: #2e1a5f;
+  --success: #10b981; --success-light: #064e3b;
+  --warning: #f59e0b; --warning-light: #4a3000;
+  --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.8;
+}
+
+/* Hero */
+.hero {
+  text-align: center; padding: 80px 24px 60px;
+  background: linear-gradient(175deg, #0a0e1a 0%, #0f172a 40%, #1a1a3a 100%);
+  position: relative; overflow: hidden;
+}
+.hero::before {
+  content:''; position:absolute; top:0; left:0; width:100%; height:100%;
+  background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(59,130,246,.08) 0%, transparent 60%),
+              radial-gradient(ellipse 40% 40% at 80% 80%, rgba(139,92,246,.05) 0%, transparent 55%);
+  pointer-events:none;
+}
+.hero-badge {
+  display:inline-block; padding:6px 18px; border:1px solid rgba(59,130,246,.25);
+  border-radius:20px; font-size:12px; color:#60a5fa; letter-spacing:2px; margin-bottom:20px;
+  background:rgba(59,130,246,.06);
+}
+.hero h1 { font-size:clamp(28px,5vw,46px); font-weight:800; letter-spacing:1px; margin-bottom:8px; }
+.hero h1 span { background:linear-gradient(135deg,#60a5fa,#a78bfa); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hero .subtitle { font-size:18px; color:var(--text2); margin-bottom:12px; }
+.hero .desc { font-size:14px; color:var(--text3); max-width:600px; margin:0 auto 32px; }
+.hero .cta-row { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.btn-primary {
+  display:inline-block; padding:14px 36px; background:linear-gradient(135deg,#3b82f6,#2563eb);
+  color:#fff; border-radius:12px; font-size:16px; font-weight:600; text-decoration:none;
+  transition:.2s; border:none; cursor:pointer; letter-spacing:.5px;
+  box-shadow:0 4px 24px rgba(59,130,246,.25);
+}
+.btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(59,130,246,.35); }
+.btn-outline {
+  display:inline-block; padding:14px 36px; border:1px solid rgba(59,130,246,.25);
+  color:#60a5fa; border-radius:12px; font-size:16px; font-weight:600; text-decoration:none;
+  transition:.2s; cursor:pointer;
+}
+.btn-outline:hover { background:rgba(59,130,246,.08); border-color:rgba(59,130,246,.4); }
+
+/* Sections */
+.container { max-width:960px; margin:0 auto; padding:0 24px; }
+.section { padding:72px 0; }
+.section-dark { background:rgba(17,24,39,.5); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.section-label {
+  display:inline-block; padding:4px 14px; border-radius:20px; font-size:11px; font-weight:600;
+  letter-spacing:1.5px; margin-bottom:16px; text-transform:uppercase;
+  background:rgba(59,130,246,.1); color:#60a5fa; border:1px solid rgba(59,130,246,.15);
+}
+.section h2 { font-size:30px; font-weight:700; margin-bottom:8px; }
+.section h3 { font-size:20px; font-weight:600; margin:24px 0 12px; color:#f1f5f9; }
+.section .lead { font-size:16px; color:var(--text2); margin-bottom:32px; }
+
+/* Value cards */
+.value-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+.value-card {
+  background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px;
+  transition:.2s;
+}
+.value-card:hover { border-color:rgba(59,130,246,.25); }
+.value-card .icon { font-size:28px; margin-bottom:10px; }
+.value-card h4 { font-size:16px; margin-bottom:6px; color:#f1f5f9; }
+.value-card p { font-size:13px; color:var(--text2); line-height:1.7; }
+
+/* Module cards */
+.module-grid { display:grid; gap:12px; }
+.module-card {
+  background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px 24px;
+  display:flex; gap:16px; align-items:flex-start; transition:.2s;
+}
+.module-card:hover { border-color:rgba(59,130,246,.2); background:rgba(30,58,95,.15); }
+.module-card .m-icon { font-size:32px; flex-shrink:0; width:48px; text-align:center; }
+.module-card .m-info { flex:1; }
+.module-card .m-info h4 { font-size:16px; margin-bottom:4px; }
+.module-card .m-info p { font-size:13px; color:var(--text2); }
+.module-card .m-tag {
+  display:inline-block; padding:2px 10px; background:rgba(59,130,246,.1);
+  border-radius:10px; font-size:11px; color:#60a5fa; margin-top:6px;
+}
+
+/* How it works */
+.steps { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.step {
+  text-align:center; padding:32px 20px; background:var(--card); border:1px solid var(--border);
+  border-radius:14px; position:relative;
+}
+.step-num {
+  width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#3b82f6,#2563eb);
+  display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700;
+  margin:0 auto 14px; box-shadow:0 4px 16px rgba(59,130,246,.3);
+}
+.step h4 { font-size:16px; margin-bottom:6px; }
+.step p { font-size:13px; color:var(--text2); }
+.step-arrow { position:absolute; right:-20px; top:50%; transform:translateY(-50%); font-size:24px; color:var(--primary); }
+@media(max-width:768px) { .steps { grid-template-columns:1fr; } .step-arrow { display:none; } }
+
+/* Pricing */
+.pricing-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+.price-card {
+  background:var(--card); border:2px solid var(--border); border-radius:16px; padding:32px 24px;
+  text-align:center; transition:.2s; position:relative;
+}
+.price-card.featured { border-color:var(--primary); background:rgba(30,58,95,.1); }
+.price-card.featured::before {
+  content:'推荐'; position:absolute; top:-12px; left:50%; transform:translateX(-50%);
+  background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; padding:4px 20px;
+  border-radius:12px; font-size:12px; font-weight:600;
+}
+.price-card .plan-name { font-size:13px; color:var(--text3); letter-spacing:1px; margin-bottom:4px; }
+.price-card .price { font-size:40px; font-weight:800; color:#f1f5f9; }
+.price-card .price span { font-size:14px; color:var(--text2); font-weight:400; }
+.price-card .price-original { font-size:13px; color:var(--text3); text-decoration:line-through; margin-bottom:16px; }
+.price-card .plan-features { list-style:none; text-align:left; margin:20px 0; }
+.price-card .plan-features li { font-size:13px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.04); color:var(--text2); }
+.price-card .plan-features li::before { content:'✓ '; color:var(--success); font-weight:700; margin-right:4px; }
+.price-card .btn-buy {
+  display:block; width:100%; padding:12px; border-radius:10px; font-size:15px; font-weight:600;
+  cursor:pointer; transition:.2s; border:none; text-align:center; text-decoration:none;
+}
+.price-card .btn-buy.primary { background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; }
+.price-card .btn-buy.primary:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(59,130,246,.3); }
+.price-card .btn-buy.outline { background:transparent; border:1px solid rgba(59,130,246,.2); color:#60a5fa; }
+.price-card .btn-buy.outline:hover { background:rgba(59,130,246,.06); }
+@media(max-width:768px) { .pricing-grid { grid-template-columns:1fr; max-width:380px; margin:0 auto; } }
+
+/* Comparison table */
+.compare-table { width:100%; border-collapse:collapse; font-size:13px; }
+.compare-table th { text-align:left; padding:12px 16px; background:rgba(17,24,39,.8); color:var(--text2); font-weight:600; border-bottom:2px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.5px; }
+.compare-table td { padding:12px 16px; border-bottom:1px solid var(--border); color:var(--text2); }
+.compare-table tr:hover td { background:rgba(59,130,246,.03); }
+.compare-table .check { color:var(--success); font-weight:700; }
+.compare-table .cross { color:#ef4444; }
+.compare-table .highlight { color:#60a5fa; font-weight:600; }
+
+/* FAQ */
+.faq-item { border-bottom:1px solid var(--border); }
+.faq-q {
+  padding:18px 0; font-size:16px; font-weight:600; cursor:pointer;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.faq-q::after { content:'+'; font-size:22px; color:var(--primary); }
+.faq-a { padding:0 0 18px; font-size:14px; color:var(--text2); display:none; }
+.faq-item.open .faq-a { display:block; }
+.faq-item.open .faq-q::after { content:'−'; }
+
+/* Footer CTA */
+.cta-section {
+  text-align:center; padding:72px 24px;
+  background:linear-gradient(175deg, #0f172a 0%, #1a1a3a 100%);
+  border-top:1px solid var(--border);
+}
+.cta-section h2 { font-size:28px; margin-bottom:12px; }
+.cta-section p { font-size:14px; color:var(--text2); margin-bottom:28px; max-width:500px; margin-left:auto; margin-right:auto; }
+.contact-info { font-size:12px; color:var(--text3); margin-top:20px; }
+
+/* Footer */
+.footer { text-align:center; padding:24px; font-size:11px; color:var(--text3); border-top:1px solid rgba(255,255,255,.04); }
+
+@media(max-width:640px) {
+  .hero { padding:48px 16px 40px; }
+  .section { padding:48px 0; }
+  .section h2 { font-size:24px; }
+  .module-card { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="hero-badge">AI × 职业发展</div>
+  <h1>安迪<span>AI调度师</span></h1>
+  <p class="subtitle">AI 职业陪跑系统</p>
+  <p class="desc">从诊断定位到入职落地，覆盖职业发展全周期的AI陪跑系统。<br>借助AI大模型，以1/10的成本获得比肩顶级职业规划师的专业分析。</p>
+  <div class="cta-row">
+    <a href="#pricing" class="btn-primary">查看套餐 →</a>
+    <a href="#how-it-works" class="btn-outline">怎么用？</a>
+  </div>
+</section>
+
+<!-- ============================================================
+     产品概述
+     ============================================================ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">产品概述</div>
+    <h2>什么是AI职业陪跑？</h2>
+    <p class="lead">一个用AI大模型帮你做职业规划的工具。你填写自己的职业数据，系统生成专业的AI指令，复制粘贴到 DeepSeek / Kimi / 豆包等AI工具，即可获得深度职业分析报告。</p>
+
+    <div class="value-grid">
+      <div class="value-card">
+        <div class="icon">💰</div>
+        <h4>1/10的价格</h4>
+        <p>传统职业规划师年费3-5万，AI陪跑年卡仅¥4,999。同样的分析框架，用AI完成。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">⚡</div>
+        <h4>即时可用</h4>
+        <p>不用预约、不用排队、不用等顾问回复。随时填写数据，即时生成AI指令。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🔒</div>
+        <h4>数据自有</h4>
+        <p>所有职业数据仅存储在本地浏览器和你的云端同步中，不上传任何第三方服务器。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🎯</div>
+        <h4>7大模块全覆盖</h4>
+        <p>从职业定位到入职陪跑，覆盖职业发展每个关键节点，一套系统管全程。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🤖</div>
+        <h4>AI深度融合</h4>
+        <p>不是简单的问答机器人。系统整合你的完整档案，生成结构化的专业分析指令。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🔄</div>
+        <h4>持续陪跑</h4>
+        <p>职业发展是长期过程。每周复盘、每月调整、每季度战略审视，系统持续支持。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     七大模块
+     ============================================================ -->
+<section class="section section-dark">
+  <div class="container">
+    <div class="section-label">功能模块</div>
+    <h2>七大模块 · 职业发展全覆盖</h2>
+    <p class="lead">每个模块都是一套完整的分析框架，AI根据你的数据生成专业指令。</p>
+
+    <div class="module-grid">
+
+      <div class="module-card">
+        <div class="m-icon">👤</div>
+        <div class="m-info">
+          <h4>个人档案</h4>
+          <p>建立你的职业背景档案。所有模块自动调用档案数据，分析更精准。</p>
+          <span class="m-tag">基础模块</span>
+        </div>
+      </div>
+
+      <div class="module-card">
+        <div class="m-icon">🧬</div>
+        <div class="m-info">
+          <h4>职业定位中心</h4>
+          <p>能力×兴趣×价值观×约束条件，四象限全景画像 + 7大瓶颈类型诊断 + 职业锚点判断。</p>
+          <span class="m-tag">核心诊断</span>
+        </div>
+      </div>
+
+      <div class="module-card">
+        <div class="m-icon">🗺️</div>
+        <div class="m-info">
+          <h4>职业路线规划</h4>
+          <p>三条路径对比（稳健爬梯 / 跨界平移 / 跃迁突破）+ 90天冲刺计划 + 时间预算管理。</p>
+          <span class="m-tag">路径设计</span>
+        </div>
+      </div>
+
+      <div class="module-card">
+        <div class="m-icon">🧰</div>
+        <div class="m-info">
+          <h4>职业能力工具箱</h4>
+          <p>简历优化 / 面试话术 / 谈薪策略 / 职业决策推演 / 倦怠诊断，五大工具模板。</p>
+          <span class="m-tag">实战工具</span>
+        </div>
+      </div>
+
+      <div class="module-card">
+        <div class="m-icon">⚔️</div>
+        <div class="m-info">
+          <h4>职业实战中心</h4>
+          <p>技能训练 / 模拟面试 / 实战任务 / 案例库 / 简历深度分析，五大实战场景。</p>
+          <span class="m-tag">实战演练</span>
+        </div>
+      </div>
+
+      <div class="module-card">
+        <div class="m-icon">🔄</div>
+        <div class="m-info">
+          <h4>职业复盘中心</h4>
+          <p>每周微调 / 月度深盘 / 数据面板 / 毕业标准 / 历史记录，系统化职业进度管理。</p>
+          <span class="m-tag">持续优化</span>
+        </div>
+      </div>
+
+      <div class="module-card">
+        <div class="m-icon">🚀</div>
+        <div class="m-info">
+          <h4>入职90天陪跑</h4>
+          <p>新岗位90天融入计划 / 风险诊断 / 倦怠诊断，帮你安全度过试用期关键窗口。</p>
+          <span class="m-tag">关键护航</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     使用流程
+     ============================================================ -->
+<section class="section" id="how-it-works">
+  <div class="container">
+    <div class="section-label">使用流程</div>
+    <h2>三步上手，简单直接</h2>
+    <p class="lead">不需要下载APP，不需要安装软件。一个网页，三步完成。</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>填写信息</h4>
+        <p>选择功能模块，填写你的职业背景、能力自评、目标方向等数据</p>
+        <span class="step-arrow">→</span>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>生成AI指令</h4>
+        <p>点击生成按钮，系统自动整合你的数据，输出结构化的专业AI分析指令</p>
+        <span class="step-arrow">→</span>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>复制到AI工具</h4>
+        <p>复制指令 → 粘贴到DeepSeek/Kimi/豆包等AI → 获得深度职业分析报告</p>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:36px;padding:20px;background:var(--card);border:1px solid var(--border);border-radius:14px;">
+      <p style="font-size:14px;color:var(--text2);">
+        <strong style="color:#60a5fa;">📌 支持任意AI大模型：</strong>
+        DeepSeek · Kimi · 豆包 · 通义千问 · 文心一言 · ChatGPT · Claude · Gemini
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     套餐定价
+     ============================================================ -->
+<section class="section section-dark" id="pricing">
+  <div class="container">
+    <div class="section-label">套餐定价</div>
+    <h2>选择适合你的陪跑方案</h2>
+    <p class="lead">三个档位，按需选择。所有套餐均包含全部7个模块的无限制访问权限。</p>
+
+    <div class="pricing-grid">
+
+      <!-- 月卡 -->
+      <div class="price-card">
+        <div class="plan-name">月度体验</div>
+        <div class="price">¥499<span>/月</span></div>
+        <div class="price-original">¥16.7/次</div>
+        <ul class="plan-features">
+          <li>30天有效期</li>
+          <li>20次AI指令生成</li>
+          <li>全部7个模块开放</li>
+          <li>个人档案系统</li>
+          <li>本地数据存储</li>
+          <li>云端同步（可选）</li>
+          <li>客服微信支持</li>
+        </ul>
+        <a class="btn-buy outline" href="#">加微信 miaoan1913 购买</a>
+      </div>
+
+      <!-- 季卡 -->
+      <div class="price-card featured">
+        <div class="plan-name">季度深度</div>
+        <div class="price">¥1,199<span>/季</span></div>
+        <div class="price-original">¥399/月 · ¥17.1/次</div>
+        <ul class="plan-features">
+          <li>90天有效期</li>
+          <li>70次AI指令生成</li>
+          <li>全部7个模块开放</li>
+          <li>个人档案系统</li>
+          <li>本地数据存储</li>
+          <li>云端同步（可选）</li>
+          <li>客服微信优先响应</li>
+          <li>每月1次人工答疑</li>
+        </ul>
+        <a class="btn-buy primary" href="#">加微信 miaoan1913 购买</a>
+      </div>
+
+      <!-- 年卡 -->
+      <div class="price-card">
+        <div class="plan-name">年度全程陪跑</div>
+        <div class="price">¥4,999<span>/年</span></div>
+        <div class="price-original">¥416/月 · ¥16.7/次</div>
+        <ul class="plan-features">
+          <li>365天有效期</li>
+          <li>300次AI指令生成</li>
+          <li>全部7个模块开放</li>
+          <li>个人档案系统</li>
+          <li>本地数据存储</li>
+          <li>云端同步（可选）</li>
+          <li>客服微信优先响应</li>
+          <li>每月2次人工答疑</li>
+          <li>1次线上视频面谈(30min)</li>
+          <li>年度职业发展回顾报告</li>
+        </ul>
+        <a class="btn-buy outline" href="#">加微信 miaoan1913 购买</a>
+      </div>
+
+    </div>
+
+    <p style="text-align:center;margin-top:20px;font-size:12px;color:var(--text3);">
+      💡 推荐季卡：90天覆盖一次完整的职业定位→路线规划→实战→复盘的周期<br>
+      所有套餐购买后激活码即时生成，激活后开始计费
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     对比表
+     ============================================================ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">为什么选择我们</div>
+    <h2>AI陪跑 vs 传统职业规划</h2>
+    <p class="lead">同样的分析框架，完全不同的体验和价格。</p>
+
+    <div style="overflow-x:auto;">
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>对比维度</th>
+          <th>传统职业规划师</th>
+          <th style="color:#60a5fa;">安迪AI调度师</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>年费</td><td>¥30,000 – 50,000</td><td class="highlight">¥4,999（年卡）</td></tr>
+        <tr><td>单次成本</td><td>¥1,000 – 2,000</td><td class="highlight">约¥17/次</td></tr>
+        <tr><td>服务模式</td><td>预约→排队→面谈</td><td class="highlight">随时填写，即时生成</td></tr>
+        <tr><td>覆盖面</td><td>取决于单个顾问专长</td><td class="highlight">7大模块覆盖全周期</td></tr>
+        <tr><td>数据安全</td><td>顾问/机构服务器</td><td class="highlight">仅存本地浏览器</td></tr>
+        <tr><td>分析客观性</td><td>可能受顾问个人偏好影响</td><td class="highlight">AI多维度客观分析</td></tr>
+        <tr><td>持续跟踪</td><td>按次付费，跟踪有限</td><td class="highlight">不限次生成，随时复盘</td></tr>
+        <tr><td>地域限制</td><td>一线城市才有优质顾问</td><td class="highlight">有网络就能用</td></tr>
+        <tr><td>知识更新</td><td>依赖个人经验积累</td><td class="highlight">AI持续吸收最新知识</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     适用人群
+     ============================================================ -->
+<section class="section section-dark">
+  <div class="container">
+    <div class="section-label">适用人群</div>
+    <h2>谁适合用AI职业陪跑？</h2>
+    <p class="lead">无论你处于职业发展的哪个阶段，都能找到对应的模块。</p>
+
+    <div class="value-grid">
+      <div class="value-card">
+        <div class="icon">🎓</div>
+        <h4>职场新人（1-3年）</h4>
+        <p>不知道自己适合做什么？职业定位模块帮你从能力、兴趣、价值观三个维度建立自我认知，找准方向。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">📈</div>
+        <h4>晋升瓶颈期（3-8年）</h4>
+        <p>感觉遇到天花板？职业路线模块设计三条可选路径，瓶颈诊断帮你找到卡点并制定突破计划。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🔄</div>
+        <h4>考虑转行的职场人</h4>
+        <p>想转行但不知道怎么转？职业能力+路线规划模块帮你评估转型成本、风险和可行路径。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🚀</div>
+        <h4>刚入职新公司的管理者</h4>
+        <p>试用期是最大风险窗口。入职90天陪跑模块提供系统化融入方案和风险诊断框架。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">😰</div>
+        <h4>职业倦怠期的人</h4>
+        <p>对工作失去热情、找不到意义感？倦怠诊断帮你识别倦怠类型，找到该调整还是该止损。</p>
+      </div>
+      <div class="value-card">
+        <div class="icon">🎯</div>
+        <h4>目标明确想加速的人</h4>
+        <p>已经有方向，需要落地？职业实战中心提供简历、面试、谈薪、技能训练全套实战工具。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FAQ
+     ============================================================ -->
+<section class="section">
+  <div class="container">
+    <div class="section-label">常见问题</div>
+    <h2>FAQ</h2>
+
+    <div class="faq-item">
+      <div class="faq-q">怎么使用？需要下载软件吗？</div>
+      <div class="faq-a">不需要。打开网页，输入激活码即可使用。选择功能模块 → 填写你的数据 → 点击"生成AI指令"→ 复制指令 → 粘贴到DeepSeek/Kimi/豆包等任意AI工具 → AI输出分析报告。全程浏览器操作，无需安装任何软件。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">AI分析和真人顾问有什么区别？</div>
+      <div class="faq-a">我们的AI指令是基于职业规划专业框架设计的，结合了Schein职业锚理论、SWOT分析、能力-兴趣-价值观三维评估等经典方法论。AI会给诚实、系统的分析。区别在于：AI不会为了让你续费而说好话，也不会因为个人偏好而产生偏见。但AI也不提供情感安慰——它给你的是专业分析，不是心理按摩。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">我的数据安全吗？</div>
+      <div class="faq-a">所有职业数据（档案、自评、报告等）仅保存在你的浏览器本地存储中。如果开启云端同步，数据存储在你自己的GitHub账号下。系统本身不上传任何数据到第三方服务器。你的职业数据完全由你掌控。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">次数用完了怎么办？</div>
+      <div class="faq-a">次数指"生成AI指令"的次数。用完可以购买新卡续费，次数和天数都会叠加。建议按需选择套餐：轻度用户选月卡(20次)，中度用户选季卡(70次)，重度用户选年卡(300次，约每天0.82次)。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">可以多设备使用吗？</div>
+      <div class="faq-a">可以。开通云端同步后，你的激活状态和职业数据会自动在不同设备间同步（电脑/手机/平板）。切换设备时只需重新登录云端同步即可。</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q">不满意可以退款吗？</div>
+      <div class="faq-a">激活码一旦激活即开始计费，不支持退款。建议先了解产品功能后再购买。你可以先试用免费体验卡（如有），或查看产品介绍手册确认是否适合你的需求。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CTA
+     ============================================================ -->
+<section class="cta-section">
+  <h2>用AI重新定义职业规划</h2>
+  <p>1/10的价格、随时可用、数据自有、AI深度分析。<br>从今天开始，让AI陪跑你的职业生涯。</p>
+  <a href="#pricing" class="btn-primary">查看套餐，开始陪跑 →</a>
+  <div class="contact-info">
+    客服微信：miaoan1913 · 工作日9:00-21:00<br>
+    激活码购买、使用咨询、商务合作，请加微信
+  </div>
+</section>
+
+<footer class="footer">
+  安迪AI调度师 · AI职业陪跑系统 v2.2 · 客服微信：miaoan1913
+</footer>
+
+<script>
+// FAQ toggle
+document.querySelectorAll('.faq-q').forEach(function(q) {
+  q.addEventListener('click', function() {
+    this.parentElement.classList.toggle('open');
+  });
+});
+</script>
+
+</body>
+</html>
