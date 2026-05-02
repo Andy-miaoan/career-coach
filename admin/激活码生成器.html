@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>激活码生成器 — 职业陪跑系统</title>
+<style>
+:root {
+  --bg: #0f172a; --card: #1e293b; --border: #334155;
+  --primary: #3b82f6; --text: #e2e8f0; --text2: #94a3b8;
+  --success: #10b981; --danger: #ef4444;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:40px 20px; }
+.container { max-width:640px; margin:0 auto; }
+h1 { font-size:24px; margin-bottom:4px; }
+.subt { font-size:13px; color:var(--text2); margin-bottom:28px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:16px; }
+label { display:block; font-size:13px; font-weight:600; margin:12px 0 4px; color:var(--text2); }
+input, select { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:8px; font-size:14px; background:#0f172a; color:var(--text); }
+input:focus, select:focus { outline:none; border-color:var(--primary); }
+.row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.btn { padding:10px 20px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+.btn-gen { width:100%; padding:14px; background:var(--primary); color:#fff; font-size:16px; margin-top:16px; }
+.btn-gen:hover { background:#2563eb; }
+.result { margin-top:16px; padding:20px; background:#0d1117; border-radius:12px; border:1px solid var(--border); display:none; }
+.result.show { display:block; }
+.code { font-size:20px; font-family:'SF Mono','Fira Code','Courier New',monospace; color:#60a5fa; word-break:break-all; letter-spacing:1px; background:rgba(59,130,246,.1); padding:14px; border-radius:8px; text-align:center; margin:8px 0; }
+.info { font-size:12px; color:var(--text2); margin-top:8px; line-height:1.8; }
+.copy-btn { margin-top:10px; padding:8px 16px; background:var(--success); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; }
+.copy-btn:hover { opacity:.85; }
+.history { margin-top:24px; }
+.history-item { padding:10px 14px; border-bottom:1px solid var(--border); font-size:13px; }
+.hist-code { color:#60a5fa; font-family:monospace; font-size:12px; }
+.section-title { font-size:14px; font-weight:700; margin-bottom:12px; color:var(--primary); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔐 激活码生成器</h1>
+  <p class="subt">适用于：AI职业陪跑系统 / AI总参谋（共享密钥体系）</p>
+
+  <div class="card">
+    <div class="section-title">📋 配置激活码参数</div>
+    <label>用户名称</label>
+    <input type="text" id="userName" placeholder="如：张三 / VIP用户001" value="测试用户">
+
+    <div class="row">
+      <div><label>有效期至</label><input type="date" id="expiry" value=""></div>
+      <div><label>使用次数上限（0=不限）</label><input type="number" id="maxUses" value="100" min="0"></div>
+    </div>
+
+    <label>微信绑定人数上限（0=不限）</label>
+    <input type="number" id="maxWechat" value="0" min="0" placeholder="0表示不限制">
+
+    <button class="btn btn-gen" onclick="generate()">✨ 生成激活码</button>
+
+    <div class="result" id="result">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">📋 生成的激活码（复制下发给用户）：</div>
+      <div class="code" id="codeDisplay"></div>
+      <button class="copy-btn" onclick="copyCode()">📋 复制激活码</button>
+      <div class="info" id="codeInfo"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">💡 定价参考</div>
+    <table style="width:100%;font-size:13px;color:var(--text2);line-height:2">
+      <tr><td>月卡</td><td>￥299</td><td>有效期30天 · 不限次</td></tr>
+      <tr><td>季卡</td><td>￥799</td><td>有效期90天 · 不限次</td></tr>
+      <tr><td>年卡</td><td>￥2999</td><td>有效期365天 · 不限次</td></tr>
+      <tr><td>体验卡</td><td>免费</td><td>有效期7天 · 限5次使用</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="section-title">📜 生成历史（本次会话）</div>
+    <div id="history"><p style="font-size:12px;color:var(--text2)">尚未生成激活码</p></div>
+  </div>
+</div>
+
+<script>
+// ========== 密钥（与产品代码中保持一致）==========
+const SECRET = "miaohan1913_AI_2026_KEY";
+
+function encrypt(payload, key) {
+  var result = '';
+  for (var i = 0; i < payload.length; i++) {
+    var c = payload.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+    result += String.fromCharCode(c);
+  }
+  var bytes = '';
+  for (var i = 0; i < result.length; i++) {
+    var hi = (result.charCodeAt(i) >> 8) & 0xFF;
+    var lo = result.charCodeAt(i) & 0xFF;
+    bytes += String.fromCharCode(hi) + String.fromCharCode(lo);
+  }
+  return btoa(bytes).replace(/\+/g, '.').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function simpleHash(str) {
+  var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 3266489909);
+  return (h1 ^ h2) >>> 0;
+}
+
+function generate() {
+  var userName = document.getElementById('userName').value.trim();
+  var expiry = document.getElementById('expiry').value;
+  var maxUses = parseInt(document.getElementById('maxUses').value) || 0;
+  var maxWechat = parseInt(document.getElementById('maxWechat').value) || 0;
+
+  if (!userName) { alert('请输入用户名称'); return; }
+  if (!expiry) { alert('请选择有效期'); return; }
+
+  var payload = expiry + '|' + maxUses + '|' + userName + '|v2|' + maxWechat;
+  var dataPart = encrypt(payload, SECRET);
+  var hash = simpleHash(dataPart + SECRET).toString(16).slice(0, 4).toUpperCase();
+  var code = dataPart + hash;
+
+  document.getElementById('result').classList.add('show');
+  document.getElementById('codeDisplay').textContent = code;
+  document.getElementById('codeInfo').innerHTML = `
+    用户：${userName}<br>
+    有效期至：${expiry}<br>
+    使用次数：${maxUses === 0 ? '不限' : maxUses + '次'}<br>
+    微信绑定：${maxWechat === 0 ? '不限人数' : '限' + maxWechat + '人'}<br>
+    <span style="color:#fbbf24">⚠ 激活码包含敏感信息，请通过私聊发给用户</span>
+  `;
+
+  // 保存历史
+  var history = JSON.parse(sessionStorage.getItem('code_history') || '[]');
+  history.unshift({ code: code, userName: userName, expiry: expiry, maxUses: maxUses, maxWechat: maxWechat, time: new Date().toISOString() });
+  sessionStorage.setItem('code_history', JSON.stringify(history.slice(0, 50)));
+  renderHistory();
+}
+
+function copyCode() {
+  var code = document.getElementById('codeDisplay').textContent;
+  navigator.clipboard.writeText(code).then(function() {
+    alert('✅ 已复制到剪贴板！\n\n发给用户：激活码 + 产品链接\nhttps://andy-miaoan.github.io/career-coach/');
+  });
+}
+
+function renderHistory() {
+  var history = JSON.parse(sessionStorage.getItem('code_history') || '[]');
+  var container = document.getElementById('history');
+  if (history.length === 0) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text2)">尚未生成激活码</p>';
+    return;
+  }
+  container.innerHTML = history.map(function(h) {
+    return '<div class="history-item"><strong>' + h.userName + '</strong> · 到期' + h.expiry + ' · ' + (h.maxUses===0?'不限次':h.maxUses+'次') + '<br><span class="hist-code">' + h.code + '</span></div>';
+  }).join('');
+}
+
+// 初始化：默认有效期设为30天后
+(function() {
+  var d = new Date();
+  d.setDate(d.getDate() + 30);
+  document.getElementById('expiry').value = d.toISOString().slice(0, 10);
+  renderHistory();
+})();
+</script>
+</body>
+</html>
