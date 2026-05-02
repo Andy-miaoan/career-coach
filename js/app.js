@@ -331,8 +331,10 @@ function enterApp() {
   document.getElementById('userName').textContent = '' + currentSession.userName;
   refreshUsageDisplay();
   var boundWx = localStorage.getItem('bound_wechat');
-  if (boundWx) {
-    document.getElementById('wechatBound') && (document.getElementById('wechatBound').style.display = 'block');
+  var wxEl = document.getElementById('wechatBound');
+  if (boundWx && wxEl) {
+    wxEl.textContent = '微信：' + escapeHTML(boundWx);
+    wxEl.style.display = '';
   }
   // 云端同步
   if (GH_TOKEN) {
@@ -644,14 +646,14 @@ function generatePositioningReport() {
 
       <div class="report-block">
         <h3>🎯 12个月目标</h3>
-        <p><strong>主目标：</strong>${data.primaryGoal || '未设定'}</p>
-        <p><strong>副目标：</strong>${data.secondaryGoal || '未设定'}</p>
+        <p><strong>主目标：</strong>${escapeHTML(data.primaryGoal || '未设定')}</p>
+        <p><strong>副目标：</strong>${escapeHTML(data.secondaryGoal || '未设定')}</p>
       </div>
 
       ${data.weaknesses?.length > 0 ? `
       <div class="report-block">
         <h3>⚠️ 三大能力短板</h3>
-        <ol>${data.weaknesses.filter(Boolean).map(w => `<li>${w}</li>`).join('')}</ol>
+        <ol>${data.weaknesses.filter(Boolean).map(w => `<li>${escapeHTML(w)}</li>`).join('')}</ol>
       </div>` : ''}
 
       <div class="report-block report-next-step">
@@ -721,9 +723,75 @@ function restorePositioningData() {
 // 模块2：职业路线
 // ============================================================
 function initRoadmap() {
+  renderIndustryMatch();
   renderPathComparison();
   renderSprint90();
   renderTimeBudget();
+}
+
+function renderIndustryMatch() {
+  const container = document.getElementById('rm-industry-match');
+  const saved = AppState.userData.roadmap || {};
+  container.innerHTML = `
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center">
+      <select id="rm-industry" class="goal-select" style="flex:1; min-width:180px" onchange="onIndustryChange()">
+        <option value="">--选择行业赛道--</option>
+        ${Object.keys(INDUSTRY_DATA).map(ind => `<option value="${ind}" ${saved.industry === ind ? 'selected' : ''}>${ind}</option>`).join('')}
+      </select>
+      <select id="rm-position" class="goal-select" style="flex:1; min-width:180px" onchange="onPositionChange()">
+        <option value="">--选择目标岗位方向--</option>
+        ${Object.keys(POSITION_FRAMEWORK).map(p => `<option value="${p}" ${saved.position === p ? 'selected' : ''}>${p}</option>`).join('')}
+      </select>
+    </div>
+    <div id="rm-match-result" style="margin-top:16px"></div>
+  `;
+  // 如果已有保存的选择，自动渲染
+  if (saved.industry || saved.position) {
+    renderMatchResult(saved.industry, saved.position);
+  }
+}
+
+function onIndustryChange() {
+  const ind = document.getElementById('rm-industry')?.value;
+  AppState.userData.roadmap = AppState.userData.roadmap || {};
+  AppState.userData.roadmap.industry = ind;
+  saveState();
+  renderMatchResult(ind, AppState.userData.roadmap?.position);
+}
+
+function onPositionChange() {
+  const pos = document.getElementById('rm-position')?.value;
+  AppState.userData.roadmap = AppState.userData.roadmap || {};
+  AppState.userData.roadmap.position = pos;
+  saveState();
+  renderMatchResult(AppState.userData.roadmap?.industry, pos);
+}
+
+function renderMatchResult(industry, position) {
+  const result = document.getElementById('rm-match-result');
+  if (!industry && !position) { result.innerHTML = ''; return; }
+
+  let html = '';
+  if (industry && INDUSTRY_DATA[industry]) {
+    const ind = INDUSTRY_DATA[industry];
+    html += `<div class="report-block"><h4>📊 ${industry}行业概览</h4>
+      <p><strong>趋势：</strong>${ind.trend}</p>
+      <p><strong>细分赛道：</strong>${ind.subSectors.join(' / ')}</p>
+      <p><strong>薪酬基准：</strong>${Object.entries(ind.salaryBenchmark).map(([k,v]) => k+': '+v).join(' | ')}</p></div>`;
+  }
+  if (position && POSITION_FRAMEWORK[position]) {
+    const pos = POSITION_FRAMEWORK[position];
+    html += `<div class="report-block"><h4>📋 ${position}能力模型</h4>
+      <p>${pos.description}</p>
+      <table class="data-table" style="margin-top:8px"><thead><tr><th>能力</th><th>权重</th><th>L1入门</th><th>L3胜任</th><th>L5专家</th></tr></thead><tbody>
+      ${pos.competencies.map(c => `<tr>
+        <td><strong>${c.name}</strong></td><td>${c.weight}%</td>
+        <td>${c.levelDesc['1']}</td><td>${c.levelDesc['3']}</td><td>${c.levelDesc['5']}</td>
+      </tr>`).join('')}
+      </tbody></table>
+      <p style="margin-top:12px"><strong>职级薪酬：</strong>${Object.entries(pos.levels).map(([k,v]) => k+': '+v.salary+' ('+v.scope+')').join(' | ')}</p></div>`;
+  }
+  result.innerHTML = html;
 }
 
 function renderPathComparison() {
@@ -1323,7 +1391,7 @@ function renderReviewHistory() {
   container.innerHTML = reviews.slice().reverse().slice(0, 10).map((r, i) => `
     <div class="history-card">
       <div class="hist-date">📅 ${new Date(r.date).toLocaleDateString('zh-CN')} · ${r.type === 'weekly' ? '周复盘' : '月度复盘'}</div>
-      ${r.top3 ? `<div class="hist-top3">本周三件事：${r.top3.map(t => '✓ '+t).join(' / ')}</div>` : ''}
+      ${r.top3 ? `<div class="hist-top3">本周三件事：${r.top3.map(t => '✓ '+escapeHTML(t)).join(' / ')}</div>` : ''}
       ${r.answers ? `<div class="hist-summary">回答了${r.answers.length}个复盘问题</div>` : ''}
     </div>
   `).join('');
@@ -1441,6 +1509,12 @@ function renderStopLoss() {
 // ============================================================
 // 通用
 // ============================================================
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
 function showToast(msg) {
   let t = document.getElementById('toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }

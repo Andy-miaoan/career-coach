@@ -54,8 +54,9 @@
   </div>
   <div class="header-right">
     <span class="header-user" id="userName"></span>
+    <span id="wechatBound" class="header-usage" style="display:none"></span>
     <span class="header-usage">剩余次数：<b id="remainingUses">-</b> · 到期：<b id="expiryDate">-</b></span>
-    <button class="btn btn-sm btn-header" onclick="logout()">退出</button>
+<button class="btn btn-sm btn-header" onclick="logout()">退出</button>
     <button class="btn btn-sm btn-header" onclick="showTokenSetup()">云端同步</button>
   </div>
 </header>
@@ -163,19 +164,25 @@
     </div>
 
     <div class="card">
-      <h3>第一步：三条路径战略对比</h3>
+      <h3>第一步：行业与岗位匹配</h3>
+      <p class="section-note">选择你感兴趣的行业赛道和目标岗位方向，系统将展示该岗位的能力要求和薪酬基准。</p>
+      <div id="rm-industry-match"></div>
+    </div>
+
+    <div class="card">
+      <h3>第二步：三条路径战略对比</h3>
       <p class="section-note">每条路径对应不同的转型幅度、风险等级和天花板高度。选择当下最适合你的策略。</p>
       <div id="rm-path-comparison"></div>
     </div>
 
     <div class="card">
-      <h3>第二步：90天冲刺计划</h3>
+      <h3>第三步：90天冲刺计划</h3>
       <p class="section-note">选定路径后，将目标拆解为30-60-90天的可执行行动。每周聚焦一个关键里程碑。</p>
       <div id="rm-sprint"></div>
     </div>
 
     <div class="card">
-      <h3>第三步：可用时间预算</h3>
+      <h3>第四步：可用时间预算</h3>
       <p class="section-note">职业发展需要投入时间。诚实评估你每周能为转型/提升投入多少小时，系统帮你匹配可行方案。</p>
       <div id="rm-time-budget"></div>
     </div>
@@ -220,12 +227,7 @@
 
     <div class="card">
       <h3>📝 简历深度分析</h3>
-      <textarea id="combat-resume-text" placeholder="在此粘贴你的简历全文...&#10;&#10;系统将从7个维度分析：结构清晰度、内容量化度、成就导向性、定位精准度、语言表达力、专业规范性、差异化竞争力。"></textarea>
-      <div style="margin-top:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <input id="combat-resume-position" placeholder="目标岗位（可选，如：商品总监）" style="flex:1; min-width:200px; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px;">
-        <button class="btn btn-primary" onclick="analyzeCombatResume()">🔍 深度分析</button>
-      </div>
-      <div id="combat-resume-result" style="margin-top:20px;"></div>
+      <div id="combat-resume"></div>
     </div>
   </section>
 
@@ -297,15 +299,15 @@
 
 </main>
 
-</div><!-- /#mainApp -->
-
 <!-- Footer -->
 <footer class="app-footer">
   <span>安迪 AI调度师 · 职业陪跑系统 v2.1</span>
   <span>客服微信：miaoan1913</span>
 </footer>
 
-<!-- Toast -->
+</div><!-- /#mainApp -->
+
+<!-- Toast（在mainApp外，登录和主界面都可使用）-->
 <div id="toast" class="toast"></div>
 
 <script src="js/data.js"></script>
