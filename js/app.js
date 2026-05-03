@@ -261,7 +261,7 @@ function saveWechat() {
 function attemptBindWechat(wx, retryCount) {
   var btn = document.querySelector('.wechat-bind-card .btn-save');
   getOrCreateGist().then(function(gistId) {
-    if (!gistId) { failFallback('网络异常，请稍后重试'); return; }
+    if (!gistId) { fallbackLocal(); return; }
     return readSharedStateWithETag(gistId).then(function(state) {
       var ch = currentSession.code.replace(/[-\s]/g, '').toUpperCase();
       var hash = simpleHash(ch).toString(16);
@@ -281,12 +281,11 @@ function attemptBindWechat(wx, retryCount) {
         cs.wechatIds.push(wx);
       }
       return writeSharedState(gistId, state).then(function(result) {
-        // GitHub 412 Precondition Failed 时 result.message 存在
         if (result && result.message && result.message.indexOf('Precondition') !== -1 && retryCount < 3) {
           return attemptBindWechat(wx, retryCount + 1);
         }
         if (result && !result.id && result.message) {
-          failFallback('云端同步失败，请稍后重试');
+          fallbackLocal();
           return;
         }
         var usage = getUsage(currentSession.code);
@@ -296,10 +295,26 @@ function attemptBindWechat(wx, retryCount) {
         localStorage.setItem('bound_wechat', wx);
         document.getElementById('wechatBindOverlay').classList.remove('show');
         _appGuard.authorize();
-  enterApp();
+        enterApp();
       });
     });
-  }).catch(function(){ failFallback('云端同步失败，请稍后重试'); });
+  }).catch(function(){ fallbackLocal(); });
+
+  function fallbackLocal() {
+    var bindings = getWechatBindings(currentSession.code);
+    if (bindings.indexOf(wx) === -1) {
+      if (bindings.length >= currentSession.maxWechatUsers) {
+        failFallback('已达人数上限（最多' + currentSession.maxWechatUsers + '人）');
+        return;
+      }
+      bindings.push(wx);
+    }
+    saveWechatBindings(currentSession.code, bindings);
+    localStorage.setItem('bound_wechat', wx);
+    document.getElementById('wechatBindOverlay').classList.remove('show');
+    _appGuard.authorize();
+    enterApp();
+  }
 
   function failFallback(msg) {
     btn.textContent = '绑定，开始使用';
