@@ -1618,6 +1618,7 @@ function switchCombatTab(tab) {
       + '<input type="text" id="cb-brand-content" placeholder="如：写文章、做PPT分享、拍短视频、直播、线下分享、都不擅长但愿意学..." value="' + escapeHTML(d.cbBrandContent || '') + '">'
       + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📣 生成个人品牌指令</button>'
       + '</div>';
+  }
   restoreDrafts();
 }
 
@@ -2049,6 +2050,7 @@ function switchOnboardMode(mode) {
       + '<input type="text" id="ob-mu-alternatives" placeholder="如：有猎头在联系 / 前公司愿意让我回去 / 暂时没有其他选择" value="' + escapeHTML(d.muAlternatives || '') + '">'
       + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">🔄 生成双向评估指令</button>'
       + '</div>';
+  }
 }
 
 function processOnboard() {
