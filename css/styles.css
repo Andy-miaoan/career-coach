@@ -53,7 +53,9 @@ body {
 .module-desc { font-size:14px; color:var(--text-secondary); line-height:1.6; }
 
 /* === 通用组件 === */
+label { font-weight:500; color:var(--text-primary); }
 .card { background:var(--bg-white); border-radius:var(--radius-lg); padding:22px; margin-bottom:18px; border:1px solid var(--border); box-shadow:var(--shadow-sm); }
+.card h3 { font-size:17px; color:var(--text-primary); margin-bottom:8px; }
 .section-note { font-size:13px; color:var(--text-muted); margin-bottom:14px; line-height:1.5; }
 .report-card { background:var(--bg-white); border-radius:var(--radius-lg); padding:26px; margin:18px 0; border:1px solid var(--border); box-shadow:var(--shadow-md); }
 .report-card h2 { font-size:22px; margin-bottom:16px; }
@@ -284,7 +286,7 @@ body {
 /* === v2.2 AI指令生成模式新增样式 === */
 
 /* Result Box */
-.result-box { display:none; margin-top:18px; padding:20px; background:rgba(15,23,42,.6); border:1px solid rgba(37,99,235,.15); border-radius:12px; font-size:13px; line-height:2; white-space:pre-wrap; max-height:520px; overflow-y:auto; color:rgba(226,232,240,.85); font-family:'SF Mono','Fira Code','Courier New',monospace; }
+.result-box { display:none; margin-top:18px; padding:20px; background:#1e293b; border:1px solid rgba(37,99,235,.15); border-radius:12px; font-size:13px; line-height:2; white-space:pre-wrap; max-height:520px; overflow-y:auto; color:#e2e8f0; font-family:'SF Mono','Fira Code','Courier New',monospace; }
 .result-box.show { display:block; animation:fadeIn .25s ease; }
 .result-box.loading { color:#94a3b8; text-align:center; padding:48px; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
@@ -294,14 +296,14 @@ body {
 @keyframes spin { to{transform:rotate(360deg)} }
 
 /* Mode Switch */
-.mode-switch { display:flex; gap:4px; background:rgba(15,23,42,.3); border-radius:8px; padding:3px; margin-bottom:18px; border:1px solid rgba(37,99,235,.08); }
-.mode-btn { flex:1; padding:9px 14px; border:none; border-radius:6px; font-size:13px; cursor:pointer; background:none; color:#94a3b8; transition:.22s; font-weight:500; white-space:nowrap; }
-.mode-btn.active { background:rgba(37,99,235,.12); color:#60a5fa; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.1); }
-.mode-btn:hover:not(.active) { color:#94a3b8; background:rgba(37,99,235,.04); }
+.mode-switch { display:flex; gap:4px; background:#e2e8f0; border-radius:8px; padding:3px; margin-bottom:18px; border:1px solid #cbd5e1; }
+.mode-btn { flex:1; padding:9px 14px; border:none; border-radius:6px; font-size:13px; cursor:pointer; background:none; color:#334155; transition:.22s; font-weight:500; white-space:nowrap; }
+.mode-btn.active { background:#2563eb; color:#ffffff; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.15); }
+.mode-btn:hover:not(.active) { color:#0f172a; background:rgba(0,0,0,.05); }
 
 /* Instruction */
-.instruction { background:rgba(37,99,235,.04); padding:13px 16px; border-radius:10px; font-size:12px; color:rgba(96,165,250,.8); margin-top:14px; line-height:1.9; border:1px solid rgba(37,99,235,.08); }
-.instruction strong { color:#60a5fa; }
+.instruction { background:#f1f5f9; padding:13px 16px; border-radius:10px; font-size:13px; color:#334155; margin-top:14px; line-height:1.9; border:1px solid #e2e8f0; }
+.instruction strong { color:#1d4ed8; }
 
 /* Form Layout */
 .form-row-2col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
@@ -311,27 +313,25 @@ body {
 .slider-row { margin:8px 0; }
 .slider-label { display:flex; justify-content:space-between; align-items:center; font-size:13px; margin-bottom:4px; }
 .slider-label span:first-child { color:var(--text-primary); }
-.slider-val { font-size:12px; color:#60a5fa; font-weight:600; }
+.slider-val { font-size:12px; color:#2563eb; font-weight:600; }
 .quad-slider { width:100%; -webkit-appearance:none; appearance:none; height:6px; background:rgba(37,99,235,.15); border-radius:3px; outline:none; }
 .quad-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:#3b82f6; cursor:pointer; box-shadow:0 0 8px rgba(37,99,235,.3); }
 .quad-slider::-moz-range-thumb { width:18px; height:18px; border-radius:50%; background:#3b82f6; cursor:pointer; border:none; }
 
-/* Section Note */
-.section-note { font-size:12px; color:#475569; margin-bottom:12px; line-height:1.6; }
 
 /* Full Width Button */
 .btn-lg-full { width:100%; padding:16px; font-size:16px; margin-top:8px; }
 .btn-primary { background:linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600; transition:.22s; }
 .btn-primary:hover { transform:translateY(-1px); box-shadow:0 6px 22px rgba(37,99,235,.25); }
-.btn-outline { display:inline-block; padding:10px 20px; background:transparent; color:#60a5fa; border:1px solid rgba(37,99,235,.25); border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:.22s; }
-.btn-outline:hover { background:rgba(37,99,235,.06); border-color:rgba(37,99,235,.4); }
+.btn-outline { display:inline-block; padding:10px 20px; background:transparent; color:#2563eb; border:1px solid #93c5fd; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; transition:.22s; }
+.btn-outline:hover { background:#eff6ff; border-color:#2563eb; }
 
 /* History Item */
-.history-item { background:rgba(15,23,42,.5); border:1px solid rgba(37,99,235,.08); border-radius:8px; padding:14px; margin-bottom:8px; cursor:pointer; transition:.22s; }
-.history-item:hover { background:rgba(37,99,235,.06); border-color:rgba(37,99,235,.15); }
-.hi-date { font-size:11px; color:#64748b; }
-.hi-module { font-size:13px; color:#60a5fa; font-weight:600; }
-.hi-preview { font-size:12px; color:#94a3b8; margin-top:4px; }
+.history-item { background:#1e293b; border:1px solid rgba(37,99,235,.12); border-radius:8px; padding:14px; margin-bottom:8px; cursor:pointer; transition:.22s; }
+.history-item:hover { background:#263548; border-color:rgba(37,99,235,.25); }
+.hi-date { font-size:11px; color:#94a3b8; }
+.hi-module { font-size:13px; color:#93c5fd; font-weight:600; }
+.hi-preview { font-size:12px; color:#cbd5e1; margin-top:4px; }
 
 /* === 登录页 === */
 .login-overlay { position:fixed; top:0; left:0; width:100%; height:100%; z-index:999; display:flex; align-items:center; justify-content:center; flex-direction:column; background:linear-gradient(175deg, #0a0e1a 0%, #0f172a 40%, #1a1f3a 100%); }
