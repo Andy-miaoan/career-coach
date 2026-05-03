@@ -228,16 +228,21 @@ function saveWechatBindings(code, list) {
 
 function saveWechat() {
   var wx = document.getElementById('wechatInput').value.trim();
-  if (!wx && currentSession.maxWechatUsers > 0) {
-    document.getElementById('wechatBindErr').textContent = '此激活码需要绑定微信号才能使用，请输入微信号';
+  var errEl = document.getElementById('wechatBindErr');
+  var btn = document.querySelector('.wechat-bind-card .btn-save');
+  if (!currentSession) {
+    errEl.textContent = '会话已过期，请刷新页面重新激活';
     return;
   }
-  var btn = document.querySelector('.wechat-bind-card .btn-save');
+  if (!wx && currentSession.maxWechatUsers > 0) {
+    errEl.textContent = '此激活码需要绑定微信号才能使用，请输入微信号';
+    return;
+  }
   if (wx && currentSession.maxWechatUsers > 0) {
     var bindings = getWechatBindings(currentSession.code);
     if (bindings.indexOf(wx) === -1) {
       if (bindings.length >= currentSession.maxWechatUsers) {
-        document.getElementById('wechatBindErr').textContent = '该激活码已达人数上限（最多' + currentSession.maxWechatUsers + '人）';
+        errEl.textContent = '该激活码已达人数上限（最多' + currentSession.maxWechatUsers + '人）';
         return;
       }
     }
@@ -247,6 +252,7 @@ function saveWechat() {
       attemptBindWechat(wx, 0);
       return;
     }
+    btn.disabled = true;
     bindings.push(wx);
     saveWechatBindings(currentSession.code, bindings);
   }
@@ -432,8 +438,18 @@ function activate() {
 }
 
 function enterApp() {
-  // 防绕过校验：必须通过正常激活流程才能进入
-  if (!_appGuard.verify()) { return; }
+  if (!_appGuard.verify()) {
+    showToast('会话已过期，请重新激活', true);
+    document.getElementById('loginScreen').style.display = '';
+    document.getElementById('activateBtn').disabled = false;
+    document.getElementById('activateBtn').textContent = '激活使用';
+    return;
+  }
+  if (!currentSession) {
+    showToast('会话丢失，请重新激活', true);
+    document.getElementById('loginScreen').style.display = '';
+    return;
+  }
   localStorage.setItem('last_activation_code', currentSession.code);
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = '';
