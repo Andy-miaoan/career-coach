@@ -15,43 +15,6 @@ const GIST_FILENAME = 'career-coach-state.json';
 let gistETag = null;
 let currentSession = null;
 
-// ============================================================
-// 防绕过保护层（防止 Console 直接调用 enterApp 或删除登录遮罩）
-// ============================================================
-const _appGuard = (function() {
-  var _token = null;
-  var _tokenTTL = 15000; // 15秒内有效
-
-  // 监视登录遮罩被删除
-  var _observer = new MutationObserver(function(mutations) {
-    for (var i = 0; i < mutations.length; i++) {
-      var m = mutations[i];
-      for (var j = 0; j < m.removedNodes.length; j++) {
-        var node = m.removedNodes[j];
-        if (node.id === 'loginScreen' && !_token) {
-          // 登录遮罩被未经授权删除 → 恢复并警告
-          if (node.parentNode || document.body) {
-            (node.parentNode || document.body).insertBefore(node, (node.parentNode || document.body).firstChild);
-          }
-          var toast = document.getElementById('toast');
-          if (toast) { toast.textContent = '⚠️ 请通过正常激活流程使用'; toast.classList.add('show', 'warn'); setTimeout(function(){ toast.classList.remove('show','warn'); }, 3000); }
-        }
-      }
-    }
-  });
-  _observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  return {
-    authorize: function() { _token = Date.now(); },
-    verify: function() {
-      if (!_token) return false;
-      if (Date.now() - _token > _tokenTTL) { _token = null; return false; }
-      _token = null; // 一次性使用
-      return true;
-    }
-  };
-})();
-
 function decrypt(encoded, key) {
   try {
     encoded = encoded.replace(/[._]/g, c => ({'.':'+','_':'/'}[c]));
@@ -263,7 +226,7 @@ function saveWechat() {
     console.log('[saveWechat] 隐藏弹窗→授权→进入App');
     btn.disabled = true;
     document.getElementById('wechatBindOverlay').classList.remove('show');
-    _appGuard.authorize();
+    
     enterApp();
     // 云端后台同步（异步，不影响用户已进入的状态）
     if (GH_TOKEN && wx) {
@@ -316,7 +279,7 @@ function attemptBindWechat(wx, retryCount) {
         localStorage.setItem('bound_wechat', wx);
         if (document.getElementById('mainApp').style.display === 'none') {
           document.getElementById('wechatBindOverlay').classList.remove('show');
-          _appGuard.authorize();
+          
           enterApp();
         }
       });
@@ -337,7 +300,7 @@ function attemptBindWechat(wx, retryCount) {
     localStorage.setItem('bound_wechat', wx);
     if (document.getElementById('mainApp').style.display === 'none') {
       document.getElementById('wechatBindOverlay').classList.remove('show');
-      _appGuard.authorize();
+      
       enterApp();
     }
   }
@@ -355,7 +318,7 @@ function skipWechat() {
     return;
   }
   document.getElementById('wechatBindOverlay').classList.remove('show');
-  _appGuard.authorize();
+  
   enterApp();
 }
 
@@ -422,7 +385,7 @@ function activate() {
             usage.uses = cs.uses || usage.uses;
             localStorage.setItem(key, JSON.stringify(usage));
             btn.textContent = '激活成功！欢迎回来';
-            _appGuard.authorize();
+            
             setTimeout(function(){ enterApp(); }, 400);
           } else {
             // Gist验证失败：本地bound_wechat是伪造的，清除并强制重新绑定
@@ -433,13 +396,13 @@ function activate() {
       }).catch(function(){ fallbackEnter(); });
       function fallbackEnter() {
         btn.textContent = '激活成功！欢迎回来';
-        _appGuard.authorize();
+        
         setTimeout(function(){ enterApp(); }, 400);
       }
     } else {
       // 无云端同步：提示风险但允许进入（纯本地模式无法强制验证）
       btn.textContent = '激活成功！欢迎回来（建议设置云端同步）';
-      _appGuard.authorize();
+      
       setTimeout(function(){ enterApp(); }, 400);
     }
   } else {
@@ -461,16 +424,7 @@ function activate() {
 }
 
 function enterApp() {
-  console.log('[enterApp] 开始 verify...');
-  if (!_appGuard.verify()) {
-    console.log('[enterApp] 失败：_appGuard.verify()返回false');
-    showToast('会话已过期，请重新激活', true);
-    document.getElementById('loginScreen').style.display = '';
-    document.getElementById('activateBtn').disabled = false;
-    document.getElementById('activateBtn').textContent = '激活使用';
-    return;
-  }
-  console.log('[enterApp] verify通过');
+  console.log('[enterApp] 开始');
   if (!currentSession) {
     console.log('[enterApp] 失败：currentSession为空');
     showToast('会话丢失，请重新激活', true);
@@ -2304,7 +2258,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var usage = getUsage(lastCode);
         if (validation.maxUses === 0 || usage.uses < validation.maxUses) {
           currentSession = { code: lastCode, userName: validation.userName, expiry: validation.expiry, maxUses: validation.maxUses, maxWechatUsers: validation.maxWechatUsers, storageKey: storageKey };
-          _appGuard.authorize();
+          
   enterApp();
           bindNavEvents();
           return;
@@ -2324,9 +2278,3 @@ function bindNavEvents() {
     });
   });
 }
-
-// Console 防绕过陷阱：覆盖 window.enterApp 为空操作
-// 内部代码通过作用域链调用真正的 enterApp 函数声明，不受影响
-window.enterApp = function() {
-  /* 请通过正常的激活流程使用 */
-};
