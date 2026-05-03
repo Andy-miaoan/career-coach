@@ -22,10 +22,10 @@
         <h2>AI 职业陪跑</h2>
         <div class="subt">从诊断定位到入职落地<br>覆盖职业发展全周期的AI陪跑系统</div>
         <div class="ref-tag" id="refTag" style="display:none">推荐人：<span id="refName"></span></div>
-        <input type="text" id="activationInput" placeholder="请输入激活码" maxlength="200" autocomplete="off">
+        <input type="text" id="activationInput" placeholder="请输入激活码" maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();activate();}">
         <div class="login-hint" id="loginHint" style="display:none" onclick="fillLastCode()" title="点击填入上次使用的激活码">上次使用：<span id="lastCodeHint"></span></div>
         <div class="login-err" id="loginErr"></div>
-        <button class="btn btn-activate" id="activateBtn" onclick="activate()">激活使用</button>
+        <button type="button" class="btn btn-activate" id="activateBtn" onclick="activate()">激活使用</button>
         <div class="login-info">还没有激活码？<br>加微信：miaoan1913 获取<br><br>月卡 ￥499(30天/20次) · 季卡 ￥1199(90天/70次) · 年卡 ￥4999(365天/300次)<br><br><span id="syncStatusLogin" onclick="showTokenSetup()">设置云端同步（跨设备共享）</span></div>
     </div>
 </div>
@@ -39,10 +39,10 @@
         <h3>绑定微信，服务不断</h3>
         <div class="subt" id="wechatBindSubt">到期前3天微信自动提醒续费，避免服务中断</div>
         <div class="benefits" id="wechatBindBenefits"><span>提前</span>到期提醒<br><span>跨设备</span>数据恢复<br><span>不打扰</span>、不群发、不营销</div>
-        <input type="text" id="wechatInput" placeholder="输入微信号（选填）">
+        <input type="text" id="wechatInput" placeholder="输入微信号（选填）" onkeydown="if(event.key==='Enter'){event.preventDefault();saveWechat();}">
         <div class="login-err" id="wechatBindErr"></div>
-        <button class="btn btn-save" onclick="saveWechat()">绑定，开始使用</button>
-        <button class="btn btn-skip" id="wechatBindSkipBtn" onclick="skipWechat()">先跳过，直接使用</button>
+        <button type="button" class="btn btn-save" onclick="saveWechat()">绑定，开始使用</button>
+        <button type="button" class="btn btn-skip" id="wechatBindSkipBtn" onclick="skipWechat()">先跳过，直接使用</button>
     </div>
 </div>
 

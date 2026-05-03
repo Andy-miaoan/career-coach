@@ -238,44 +238,37 @@ function saveWechat() {
     var btn = document.querySelector('.wechat-bind-card .btn-save');
     console.log('[saveWechat] wx=' + wx + ' maxWechatUsers=' + (currentSession ? currentSession.maxWechatUsers : 'session_null') + ' GH_TOKEN=' + (GH_TOKEN ? '已设置' : '未设置'));
     if (!currentSession) {
-      console.log('[saveWechat] 失败：currentSession为空');
       errEl.textContent = '会话已过期，请刷新页面重新激活';
       return;
     }
     if (!wx && currentSession.maxWechatUsers > 0) {
-      console.log('[saveWechat] 失败：微信号为空但要求必填');
       errEl.textContent = '此激活码需要绑定微信号才能使用，请输入微信号';
       return;
     }
     if (wx && currentSession.maxWechatUsers > 0) {
       var bindings = getWechatBindings(currentSession.code);
-      console.log('[saveWechat] 现有绑定=' + JSON.stringify(bindings));
       if (bindings.indexOf(wx) === -1) {
         if (bindings.length >= currentSession.maxWechatUsers) {
-          console.log('[saveWechat] 失败：已达人数上限');
           errEl.textContent = '该激活码已达人数上限（最多' + currentSession.maxWechatUsers + '人）';
           return;
         }
+        bindings.push(wx);
+        saveWechatBindings(currentSession.code, bindings);
       }
-      if (GH_TOKEN) {
-        console.log('[saveWechat] 走云端同步路径');
-        btn.textContent = '云端验证中...';
-        btn.disabled = true;
-        attemptBindWechat(wx, 0);
-        return;
-      }
-      console.log('[saveWechat] 走本地绑定路径');
-      btn.disabled = true;
-      bindings.push(wx);
-      saveWechatBindings(currentSession.code, bindings);
     }
     if (wx) {
       localStorage.setItem('bound_wechat', wx);
     }
+    // 始终先本地进入App，云端同步在后台进行（不阻塞用户进入）
     console.log('[saveWechat] 隐藏弹窗→授权→进入App');
+    btn.disabled = true;
     document.getElementById('wechatBindOverlay').classList.remove('show');
     _appGuard.authorize();
     enterApp();
+    // 云端后台同步（异步，不影响用户已进入的状态）
+    if (GH_TOKEN && wx) {
+      attemptBindWechat(wx, 0);
+    }
   } catch(e) {
     console.log('[saveWechat] 异常：' + e.message);
     var errEl = document.getElementById('wechatBindErr');
@@ -321,9 +314,11 @@ function attemptBindWechat(wx, retryCount) {
         localStorage.setItem(getUsageKey(currentSession.code), JSON.stringify(usage));
         saveWechatBindings(currentSession.code, cs.wechatIds);
         localStorage.setItem('bound_wechat', wx);
-        document.getElementById('wechatBindOverlay').classList.remove('show');
-        _appGuard.authorize();
-        enterApp();
+        if (document.getElementById('mainApp').style.display === 'none') {
+          document.getElementById('wechatBindOverlay').classList.remove('show');
+          _appGuard.authorize();
+          enterApp();
+        }
       });
     });
   }).catch(function(){ fallbackLocal(); });
@@ -340,9 +335,11 @@ function attemptBindWechat(wx, retryCount) {
     }
     saveWechatBindings(currentSession.code, bindings);
     localStorage.setItem('bound_wechat', wx);
-    document.getElementById('wechatBindOverlay').classList.remove('show');
-    _appGuard.authorize();
-    enterApp();
+    if (document.getElementById('mainApp').style.display === 'none') {
+      document.getElementById('wechatBindOverlay').classList.remove('show');
+      _appGuard.authorize();
+      enterApp();
+    }
   }
 
   function failFallback(msg) {
@@ -411,7 +408,7 @@ function activate() {
     if (GH_TOKEN) {
       btn.textContent = '验证身份中...';
       getOrCreateGist().then(function(gistId) {
-        if (!gistId) { showWechatBindPopup('该激活码限 ' + validation.maxWechatUsers + ' 人使用', true); return; }
+        if (!gistId) { fallbackEnter(); return; }
         return readSharedState(gistId).then(function(state) {
           var ch = currentSession.code.replace(/[-\s]/g, '').toUpperCase();
           var h = simpleHash(ch).toString(16);
@@ -433,9 +430,12 @@ function activate() {
             showWechatBindPopup('该激活码限 ' + validation.maxWechatUsers + ' 人使用', true);
           }
         });
-      }).catch(function(){
-        showWechatBindPopup('该激活码限 ' + validation.maxWechatUsers + ' 人使用', true);
-      });
+      }).catch(function(){ fallbackEnter(); });
+      function fallbackEnter() {
+        btn.textContent = '激活成功！欢迎回来';
+        _appGuard.authorize();
+        setTimeout(function(){ enterApp(); }, 400);
+      }
     } else {
       // 无云端同步：提示风险但允许进入（纯本地模式无法强制验证）
       btn.textContent = '激活成功！欢迎回来（建议设置云端同步）';
