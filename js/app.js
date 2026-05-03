@@ -227,31 +227,39 @@ function saveWechatBindings(code, list) {
 }
 
 function saveWechat() {
+  console.log('[saveWechat] 开始执行');
   var wx = document.getElementById('wechatInput').value.trim();
   var errEl = document.getElementById('wechatBindErr');
   var btn = document.querySelector('.wechat-bind-card .btn-save');
+  console.log('[saveWechat] wx=' + wx + ' maxWechatUsers=' + (currentSession ? currentSession.maxWechatUsers : 'session_null') + ' GH_TOKEN=' + (GH_TOKEN ? '已设置' : '未设置'));
   if (!currentSession) {
+    console.log('[saveWechat] 失败：currentSession为空');
     errEl.textContent = '会话已过期，请刷新页面重新激活';
     return;
   }
   if (!wx && currentSession.maxWechatUsers > 0) {
+    console.log('[saveWechat] 失败：微信号为空但要求必填');
     errEl.textContent = '此激活码需要绑定微信号才能使用，请输入微信号';
     return;
   }
   if (wx && currentSession.maxWechatUsers > 0) {
     var bindings = getWechatBindings(currentSession.code);
+    console.log('[saveWechat] 现有绑定=' + JSON.stringify(bindings));
     if (bindings.indexOf(wx) === -1) {
       if (bindings.length >= currentSession.maxWechatUsers) {
+        console.log('[saveWechat] 失败：已达人数上限');
         errEl.textContent = '该激活码已达人数上限（最多' + currentSession.maxWechatUsers + '人）';
         return;
       }
     }
     if (GH_TOKEN) {
+      console.log('[saveWechat] 走云端同步路径');
       btn.textContent = '云端验证中...';
       btn.disabled = true;
       attemptBindWechat(wx, 0);
       return;
     }
+    console.log('[saveWechat] 走本地绑定路径');
     btn.disabled = true;
     bindings.push(wx);
     saveWechatBindings(currentSession.code, bindings);
@@ -259,15 +267,18 @@ function saveWechat() {
   if (wx) {
     localStorage.setItem('bound_wechat', wx);
   }
+  console.log('[saveWechat] 隐藏弹窗→授权→进入App');
   document.getElementById('wechatBindOverlay').classList.remove('show');
   _appGuard.authorize();
   enterApp();
 }
 
 function attemptBindWechat(wx, retryCount) {
+  console.log('[attemptBindWechat] 开始 retry=' + (retryCount || 0));
   var btn = document.querySelector('.wechat-bind-card .btn-save');
   getOrCreateGist().then(function(gistId) {
-    if (!gistId) { fallbackLocal(); return; }
+    console.log('[attemptBindWechat] gistId=' + (gistId || 'null'));
+    if (!gistId) { console.log('[attemptBindWechat] 无gistId→fallbackLocal'); fallbackLocal(); return; }
     return readSharedStateWithETag(gistId).then(function(state) {
       var ch = currentSession.code.replace(/[-\s]/g, '').toUpperCase();
       var hash = simpleHash(ch).toString(16);
@@ -307,6 +318,7 @@ function attemptBindWechat(wx, retryCount) {
   }).catch(function(){ fallbackLocal(); });
 
   function fallbackLocal() {
+    console.log('[fallbackLocal] 回退本地绑定');
     var bindings = getWechatBindings(currentSession.code);
     if (bindings.indexOf(wx) === -1) {
       if (bindings.length >= currentSession.maxWechatUsers) {
@@ -438,18 +450,23 @@ function activate() {
 }
 
 function enterApp() {
+  console.log('[enterApp] 开始 verify...');
   if (!_appGuard.verify()) {
+    console.log('[enterApp] 失败：_appGuard.verify()返回false');
     showToast('会话已过期，请重新激活', true);
     document.getElementById('loginScreen').style.display = '';
     document.getElementById('activateBtn').disabled = false;
     document.getElementById('activateBtn').textContent = '激活使用';
     return;
   }
+  console.log('[enterApp] verify通过');
   if (!currentSession) {
+    console.log('[enterApp] 失败：currentSession为空');
     showToast('会话丢失，请重新激活', true);
     document.getElementById('loginScreen').style.display = '';
     return;
   }
+  console.log('[enterApp] 隐藏登录屏→显示主界面');
   localStorage.setItem('last_activation_code', currentSession.code);
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = '';
