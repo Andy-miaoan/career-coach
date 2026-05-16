@@ -1,7 +1,6 @@
 /**
- * AI职业陪跑系统 v2.2 — 主应用逻辑（个人档案 + 瓶颈诊断 + 6模块）
- * AI指令生成模式：填写数据 → 生成AI指令 → 复制 → 粘贴到DeepSeek/Kimi等AI工具
- * 6模块：职业定位 | 职业路线 | 职业能力 | 职业实战 | 职业复盘 | 入职陪跑
+ * 安迪·职业陪跑 v3.0 — 主应用逻辑
+ * 9模块：职业基因检测(免费) | 职业定位 | 职业路线 | 个人商业模式 | 行业情报与风控 | 能力建模 | 实战导航 | 职业复盘 | 入职陪跑
  * 激活系统 + 云端同步
  */
 
@@ -10,7 +9,7 @@
 // ============================================================
 const SECRET = "miaohan1913_AI_2026_KEY";
 const GH_TOKEN = localStorage.getItem('gh_sync_token') || '';
-const GIST_DESC = 'AI职业陪跑-跨设备状态同步';
+const GIST_DESC = '安迪职业陪跑-跨设备状态同步';
 const GIST_FILENAME = 'career-coach-state.json';
 let gistETag = null;
 let currentSession = null;
@@ -481,8 +480,61 @@ function enterApp() {
       });
     }).catch(function(){});
   }
-  navTo('positioning');
+  navTo('genetest');
 }
+
+// ========== 免费体验模式 ==========
+var freeMode = false;
+var FREE_MODULES = ['genetest', 'profile'];
+
+function enterFreeMode() {
+  freeMode = true;
+  currentSession = null;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = '';
+  document.getElementById('userName').textContent = '🧬 免费体验用户';
+  document.getElementById('remainingUses').textContent = '不限次数';
+  document.getElementById('expiryDate').textContent = '仅基因检测';
+  document.getElementById('freeModeBanner').style.display = '';
+  document.getElementById('wechatBound').style.display = 'none';
+  navTo('genetest');
+}
+
+function exitFreeMode() {
+  freeMode = false;
+  document.getElementById('freeModeBanner').style.display = 'none';
+}
+
+// 检查模块是否在免费模式下可用
+function isModuleFree(mod) {
+  return FREE_MODULES.indexOf(mod) >= 0;
+}
+
+// 重写navTo以在免费模式下限制模块访问
+var _originalNavTo = navTo;
+navTo = function(mod) {
+  if (freeMode && !isModuleFree(mod)) {
+    showToast('🔒 此功能需要激活码。免费模式下仅开放职业基因检测和个人档案。', true);
+    return;
+  }
+  _originalNavTo(mod);
+};
+
+// 修改useOneCredit：免费模块不消耗次数
+var _originalUseOneCredit = useOneCredit;
+useOneCredit = function(onSuccess, onFail) {
+  if (freeMode && isModuleFree(AppState.currentModule)) {
+    // 免费模式 + 免费模块 = 不消耗次数
+    if (onSuccess) onSuccess();
+    return true;
+  }
+  if (!freeMode && AppState.currentModule === 'genetest') {
+    // 付费用户使用基因检测也不消耗次数
+    if (onSuccess) onSuccess();
+    return true;
+  }
+  return _originalUseOneCredit(onSuccess, onFail);
+};
 
 function logout() {
   if (!confirm('确定要退出吗？\n\n退出后重新进入需要输入激活码。')) return;
@@ -566,7 +618,7 @@ function showTokenSetup() {
 })();
 
 // ============================================================
-// 应用主逻辑（v2.2 — AI指令生成模式）
+// 应用主逻辑（v3.0 — 指令生成模式）
 // ============================================================
 
 const AppState = {
@@ -621,8 +673,11 @@ function navTo(mod) {
 
   switch(mod) {
     case 'profile': initProfile(); break;
+    case 'genetest': initGeneTest(); break;
     case 'positioning': initPositioning(); break;
     case 'roadmap': initRoadmap(); break;
+    case 'bizmodel': initBizModel(); break;
+    case 'foresight': initForesight(); break;
     case 'toolkit': initToolkit(); break;
     case 'combat': initCombat(); break;
     case 'review': initReview(); break;
@@ -936,6 +991,382 @@ function removeWorkHistory(idx) {
     if (title) title.textContent = '第' + (i + 1) + '段工作经历';
   });
 }
+// ============================================================
+// 模块1：职业基因检测 [免费入口] — 四象限基因图谱
+// ============================================================
+function initGeneTest() {
+  var container = document.getElementById('genetest-container');
+  var d = AppState.userData.genetest || {};
+  container.innerHTML = ''
+    + '<div class="card">'
+    + '<h3>🧬 职业基因检测 <span style="font-size:13px;color:#22c55e;">免费 · 不限次数</span></h3>'
+    + '<p class="section-note">看清自己的底层代码，是所有职业决策的起点。以下四个维度，诚实作答即可——这不是考试，是照镜子。</p>'
+    + '<div class="form-row-2col">'
+    + '<div><label>当前行业</label><input type="text" id="gt-industry" placeholder="如：服装零售 / 互联网 / 消费品..." value="' + escapeHTML(d.industry || '') + '"></div>'
+    + '<div><label>当前岗位/职能</label><input type="text" id="gt-role" placeholder="如：运营管理 / 商品管理 / 品牌市场..." value="' + escapeHTML(d.role || '') + '"></div>'
+    + '</div>'
+    + '<div class="form-row-2col">'
+    + '<div><label>从业年限</label><input type="number" id="gt-years" placeholder="如：8" value="' + escapeHTML(String(d.years || '')) + '" min="0" max="50"></div>'
+    + '<div><label>当前年薪（万元）</label><input type="number" id="gt-salary" placeholder="如：50" value="' + escapeHTML(String(d.salary || '')) + '" min="0" max="5000"></div>'
+    + '</div>'
+    + '<div><label>你当前最大的职业困惑是什么？（一句话）</label>'
+    + '<textarea id="gt-confusion" rows="2" placeholder="如：我该继续深耕运营还是转型做业务负责人？">' + escapeHTML(d.confusion || '') + '</textarea></div>'
+    + '</div>'
+    + '<div class="card">'
+    + '<h3>💪 能力自评</h3>'
+    + '<p class="section-note">以下8个维度，客观评分（1=完全不行，5=行业顶尖）。<b>注意：这是你对自己的评价，不是别人对你的评价。</b></p>'
+    + '<div class="form-row-2col" id="gt-abilities"></div>'
+    + '</div>'
+    + '<div class="card">'
+    + '<h3>🔥 兴趣自评</h3>'
+    + '<p class="section-note">哪些事让你废寝忘食？</p>'
+    + '<div class="form-row-2col" id="gt-interests"></div>'
+    + '</div>'
+    + '<div class="card">'
+    + '<h3>💎 价值观排序（选出最重要的3个）</h3>'
+    + '<div class="form-row-2col" id="gt-values"></div>'
+    + '</div>'
+    + '<button class="btn btn-primary" onclick="generateGeneTest()">🧬 生成我的职业基因图谱（免费）</button>'
+    + '<div id="gt-result"></div>';
+
+  // 渲染能力评分
+  var abilityDims = CAREER_POSITIONING.fourQuadrants.ability.dimensions;
+  var abHtml = '';
+  abilityDims.forEach(function(dim) {
+    var savedVal = (d.abilities && d.abilities[dim.id]) ? d.abilities[dim.id] : '';
+    abHtml += '<div><label title="' + dim.desc + '">' + dim.name + '</label><input type="number" id="gt-ab-' + dim.id + '" min="1" max="5" value="' + escapeHTML(String(savedVal)) + '" placeholder="1-5" style="width:60px"></div>';
+  });
+  document.getElementById('gt-abilities').innerHTML = abHtml;
+
+  // 渲染兴趣评分
+  var interestDims = CAREER_POSITIONING.fourQuadrants.interest.dimensions;
+  var intHtml = '';
+  interestDims.forEach(function(dim) {
+    var savedVal = (d.interests && d.interests[dim.id]) ? d.interests[dim.id] : '';
+    intHtml += '<div><label title="' + dim.desc + '">' + dim.name + '</label><input type="number" id="gt-in-' + dim.id + '" min="1" max="5" value="' + escapeHTML(String(savedVal)) + '" placeholder="1-5" style="width:60px"></div>';
+  });
+  document.getElementById('gt-interests').innerHTML = intHtml;
+
+  // 渲染价值观选择
+  var valueDims = CAREER_POSITIONING.fourQuadrants.values.dimensions;
+  var valHtml = '';
+  valueDims.forEach(function(dim) {
+    var checked = (d.values && d.values.indexOf(dim.id) >= 0) ? ' checked' : '';
+    valHtml += '<div><label><input type="checkbox" id="gt-v-' + dim.id + '"' + checked + '> ' + dim.name + '</label></div>';
+  });
+  document.getElementById('gt-values').innerHTML = valHtml;
+}
+
+function generateGeneTest() {
+  // 收集数据
+  var data = {
+    industry: document.getElementById('gt-industry').value,
+    role: document.getElementById('gt-role').value,
+    years: parseInt(document.getElementById('gt-years').value) || 0,
+    salary: parseInt(document.getElementById('gt-salary').value) || 0,
+    confusion: document.getElementById('gt-confusion').value,
+    abilities: {},
+    interests: {},
+    values: []
+  };
+  CAREER_POSITIONING.fourQuadrants.ability.dimensions.forEach(function(dim) {
+    data.abilities[dim.id] = parseInt(document.getElementById('gt-ab-' + dim.id).value) || 0;
+  });
+  CAREER_POSITIONING.fourQuadrants.interest.dimensions.forEach(function(dim) {
+    data.interests[dim.id] = parseInt(document.getElementById('gt-in-' + dim.id).value) || 0;
+  });
+  CAREER_POSITIONING.fourQuadrants.values.dimensions.forEach(function(dim) {
+    var cb = document.getElementById('gt-v-' + dim.id);
+    if (cb && cb.checked) data.values.push(dim.id);
+  });
+
+  // 保存到草稿
+  AppState.userData.genetest = data;
+  saveDrafts();
+
+  // 生成四象限报告
+  var resultHtml = '<div class="card" style="margin-top:16px"><h3>📊 你的职业基因图谱</h3>';
+
+  // 能力象限
+  resultHtml += '<h4>💪 能力象限</h4><div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">';
+  var abDims = CAREER_POSITIONING.fourQuadrants.ability.dimensions;
+  abDims.forEach(function(dim) {
+    var score = data.abilities[dim.id] || 0;
+    var color = score >= 4 ? '#22c55e' : score >= 3 ? '#f59e0b' : score >= 2 ? '#f97316' : '#94a3b8';
+    var label = score >= 4 ? '优势区' : score >= 3 ? '潜力区' : score >= 2 ? '盲区' : '未知';
+    resultHtml += '<div style="background:#1e293b;padding:8px 12px;border-radius:8px;min-width:100px;text-align:center">'
+      + '<div style="font-size:24px;color:' + color + '">' + (score || '?') + '</div>'
+      + '<div style="font-size:12px;color:#cbd5e1">' + dim.name + '</div>'
+      + '<div style="font-size:10px;color:' + color + '">' + label + '</div></div>';
+  });
+  resultHtml += '</div>';
+
+  // 兴趣象限
+  resultHtml += '<h4>🔥 兴趣象限</h4><div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">';
+  var intDims = CAREER_POSITIONING.fourQuadrants.interest.dimensions;
+  intDims.forEach(function(dim) {
+    var score = data.interests[dim.id] || 0;
+    var color = score >= 4 ? '#8b5cf6' : score >= 3 ? '#f59e0b' : '#94a3b8';
+    resultHtml += '<div style="background:#1e293b;padding:8px 12px;border-radius:8px;min-width:100px;text-align:center">'
+      + '<div style="font-size:24px;color:' + color + '">' + (score || '?') + '</div>'
+      + '<div style="font-size:12px;color:#cbd5e1">' + dim.name + '</div></div>';
+  });
+  resultHtml += '</div>';
+
+  // 价值观
+  if (data.values.length > 0) {
+    resultHtml += '<h4>💎 核心价值观 Top 3</h4><div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">';
+    var valDims = CAREER_POSITIONING.fourQuadrants.values.dimensions;
+    data.values.slice(0, 3).forEach(function(vId) {
+      var dim = valDims.find(function(d){ return d.id === vId; });
+      if (dim) resultHtml += '<span style="background:#1e293b;padding:6px 12px;border-radius:6px;font-size:13px">💎 ' + dim.name + '</span>';
+    });
+    resultHtml += '</div>';
+  }
+
+  // 综合分析
+  resultHtml += '<h4>🔍 安迪的初步观察</h4>';
+  resultHtml += '<div style="background:#1e293b;padding:16px;border-radius:8px;font-size:14px;line-height:1.8">';
+
+  var topAbilities = abDims.filter(function(d){ return (data.abilities[d.id] || 0) >= 4; }).map(function(d){ return d.name; });
+  var lowAbilities = abDims.filter(function(d){ var s = data.abilities[d.id] || 0; return s > 0 && s <= 2; }).map(function(d){ return d.name; });
+  var topInterests = intDims.filter(function(d){ return (data.interests[d.id] || 0) >= 4; }).map(function(d){ return d.name; });
+
+  if (topAbilities.length > 0) resultHtml += '<p>✅ <b>能力优势区：</b>' + topAbilities.join('、') + '。这些是你最锋利的武器，职业定位应围绕这些展开。</p>';
+  if (lowAbilities.length > 0) resultHtml += '<p>⚠️ <b>能力盲区：</b>' + lowAbilities.join('、') + '。这些维度需要补强或通过团队/合作来弥补。</p>';
+  if (topInterests.length > 0) resultHtml += '<p>🔥 <b>兴趣驱动区：</b>' + topInterests.join('、') + '。不给钱也愿意做的事，往往藏着你的长期方向。</p>';
+  if (data.confusion) resultHtml += '<p>🤔 <b>当前困惑：</b>' + escapeHTML(data.confusion) + '</p>';
+  resultHtml += '</div>';
+
+  // 下一步引导
+  resultHtml += '<div style="margin-top:16px;padding:16px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:8px;text-align:center">'
+    + '<p style="color:#cbd5e1;margin-bottom:12px">基因图谱已生成。认识自己是第一步，接下来——你需要一个从A到B的具体路线。</p>'
+    + '<button class="btn btn-primary" onclick="navTo(\'positioning\')">🎯 进入职业定位，深度分析</button>'
+    + '</div>';
+
+  resultHtml += '</div>';
+  document.getElementById('gt-result').innerHTML = resultHtml;
+  document.getElementById('gt-result').scrollIntoView({ behavior: 'smooth' });
+  showToast('基因图谱已生成！这是免费功能，不消耗次数');
+}
+
+// ============================================================
+// 模块4：个人商业模式 [新增]
+// ============================================================
+function initBizModel() {
+  var container = document.getElementById('bizmodel-container');
+  var d = AppState.userData.bizmodel || {};
+  container.innerHTML = ''
+    + '<div class="card">'
+    + '<h3>💎 个人商业模式画布</h3>'
+    + '<p class="section-note">如果把你自己当成一家公司，你的商业模式是什么？你靠什么赚钱？你的收入结构健康吗？</p>'
+    + '<div class="form-row-2col">'
+    + '<div><label>你的核心"产品"是什么？（一句话描述你的核心价值）</label><input type="text" id="bm-product" placeholder="如：帮助消费品牌搭建全域数字化运营体系" value="' + escapeHTML(d.product || '') + '"></div>'
+    + '<div><label>你的"目标客户"是谁？（哪些公司/行业最需要你）</label><input type="text" id="bm-clients" placeholder="如：年营收10-50亿的中腰部消费品牌" value="' + escapeHTML(d.clients || '') + '"></div>'
+    + '</div>'
+    + '<div><label>你的收入来源有哪些？（工资占比多少？理想占比是多少？）</label>'
+    + '<textarea id="bm-income" rows="3" placeholder="如：工资(80%) → 目标50% / 咨询(10%) → 目标20% / 讲课(5%) / 股权(5%)">' + escapeHTML(d.income || '') + '</textarea></div>'
+    + '<div class="form-row-2col">'
+    + '<div><label>你现在在积累什么资产？（品牌/人脉/股权/IP/作品？）</label><input type="text" id="bm-assets" placeholder="如：行业人脉+运营方法论体系" value="' + escapeHTML(d.assets || '') + '"></div>'
+    + '<div><label>你的杠杆是什么？（代码/内容/资本/人力/网络效应？）</label><input type="text" id="bm-leverage" placeholder="如：内容杠杆——写作+行业分享" value="' + escapeHTML(d.leverage || '') + '"></div>'
+    + '</div>'
+    + '<div><label>你目前的核心瓶颈或卡点是什么？</label>'
+    + '<textarea id="bm-blocker" rows="2" placeholder="如：收入过于依赖单一工资来源，缺乏被动收入渠道">' + escapeHTML(d.blocker || '') + '</textarea></div>'
+    + '</div>'
+    + '<button class="btn btn-primary btn-lg-full" onclick="generateBizModel()">💎 生成商业模式分析</button>'
+    + '<div class="result-box" id="bm-result"></div>'
+    + '<button class="btn btn-outline" id="bm-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'bm-result\')">📋 复制指令</button>'
+    + '<div class="feedback-bar" id="fb-bizmodel" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'bizmodel\',\'个人商业模式\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'bizmodel\',\'个人商业模式\',false,this)">👎 没帮助</button>'
+    + '</div>'
+    + '<div class="instruction"><strong>怎么用：</strong>诚实填写你的商业模式画布 → 点击「生成AI指令」→ 复制 → 粘贴到 DeepSeek / Kimi / 豆包 等AI工具 → AI输出完整的商业模式诊断和升级方案。</div>';
+}
+
+function generateBizModel() {
+  var resultBox = document.getElementById('bm-result');
+  showSpinner('bm-result');
+  useOneCredit(function() {
+    var data = {
+      product: document.getElementById('bm-product').value || '【未填】',
+      clients: document.getElementById('bm-clients').value || '【未填】',
+      income: document.getElementById('bm-income').value || '【未填】',
+      assets: document.getElementById('bm-assets').value || '【未填】',
+      leverage: document.getElementById('bm-leverage').value || '【未填】',
+      blocker: document.getElementById('bm-blocker').value || '【未填】'
+    };
+    AppState.userData.bizmodel = data;
+    saveDrafts();
+
+    var raw = '你是一位资深商业顾问和个人商业模式设计师，曾帮助500+职场人士重新设计收入结构和职业资产配置。请根据以下信息，做一份个人商业模式深度分析。\n\n'
+      + '## 个人商业模式画布\n'
+      + '- 核心产品：' + data.product + '\n'
+      + '- 目标客户：' + data.clients + '\n'
+      + '- 当前收入来源：\n' + data.income + '\n'
+      + '- 正在积累的资产：' + data.assets + '\n'
+      + '- 已使用的杠杆：' + data.leverage + '\n'
+      + '- 核心卡点：' + data.blocker + '\n\n'
+      + '## 请按以下框架输出商业模式分析报告\n\n'
+      + '### 一、收入结构诊断\n'
+      + '- 当前收入来源的健康度评分（1-10）\n'
+      + '- 过度依赖工资的风险等级及量化分析\n'
+      + '- 收入多元化潜力评估\n\n'
+      + '### 二、资产盘点\n'
+      + '- 用户正在积累的资产中，哪些是真资产（可增值、可复用、可带走）？\n'
+      + '- 哪些是伪资产（与当前平台强绑定、不可迁移）？\n'
+      + '- 资产组合优化建议\n\n'
+      + '### 三、杠杆分析\n'
+      + '- 用户已使用的杠杆效率评估\n'
+      + '- 还可以增加的杠杆类型（代码/内容/资本/人力/网络效应）\n'
+      + '- 每个建议杠杆的启动门槛和预期回报\n\n'
+      + '### 四、商业模式升级路径\n'
+      + '- 从"卖时间"向"卖产品/卖服务/卖认知"转型的3条具体路径\n'
+      + '- 每条路径的时间线、资源需求和风险收益比\n'
+      + '- 推荐优先级排序\n\n'
+      + '### 五、估值提升策略\n'
+      + '- 用户如何从"提升薪资"思维转向"提升估值"思维？\n'
+      + '- 具体可操作的3个估值提升动作\n\n'
+      + '## 重要规则\n'
+      + '- 诚实分析，不要美化\n'
+      + '- 每条建议都要具体可执行，禁止"提升自己""拓展人脉"这种废话\n'
+      + '- 如果信息不足，明确指出需要补充什么';
+
+    var prompt = wrapPrompt(raw, '个人商业模式', '');
+    resultBox.classList.remove('loading');
+    resultBox.textContent = prompt;
+    var copyBtn = document.getElementById('bm-copy-btn');
+    if (copyBtn) copyBtn.style.display = 'inline-block';
+    showFeedback('bizmodel');
+  }, function(err) {
+    document.getElementById('bm-result').classList.remove('show');
+    showToast(err, true);
+  });
+}
+
+// ============================================================
+// 模块5：行业情报与风控 [新增]
+// ============================================================
+function initForesight() {
+  var container = document.getElementById('foresight-container');
+  var d = AppState.userData.foresight || {};
+  container.innerHTML = ''
+    + '<div class="card">'
+    + '<h3>🔭 行业情报与职业风控</h3>'
+    + '<p class="section-note">信息差是中高端职业人最大的隐性成本。你知道你的行业在往哪走吗？你的职业有"保质期"吗？</p>'
+    + '<div class="form-row-2col">'
+    + '<div><label>你当前的行业</label><input type="text" id="fs-industry" placeholder="如：服装零售" value="' + escapeHTML(d.industry || (AppState.userData.genetest && AppState.userData.genetest.industry || '')) + '"></div>'
+    + '<div><label>你当前的职能</label><input type="text" id="fs-role" placeholder="如：运营管理" value="' + escapeHTML(d.role || (AppState.userData.genetest && AppState.userData.genetest.role || '')) + '"></div>'
+    + '</div>'
+    + '<div class="form-row-2col">'
+    + '<div><label>你的年龄</label><input type="number" id="fs-age" placeholder="如：35" value="' + escapeHTML(String(d.age || '')) + '" min="22" max="65"></div>'
+    + '<div><label>你感觉当前行业的增长状态？</label><select id="fs-trend"><option value="">-- 选择 --</option>'
+    + '<option value="exploding"' + (d.trend === 'exploding' ? ' selected' : '') + '>爆发式增长</option>'
+    + '<option value="growing"' + (d.trend === 'growing' ? ' selected' : '') + '>稳健增长</option>'
+    + '<option value="flat"' + (d.trend === 'flat' ? ' selected' : '') + '>增长停滞</option>'
+    + '<option value="declining"' + (d.trend === 'declining' ? ' selected' : '') + '>明显下滑</option></select></div>'
+    + '</div>'
+    + '<div><label>你最担心的职业风险是什么？（可多选）</label>'
+    + '<div id="fs-risks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div>'
+    + '</div>'
+    + '<button class="btn btn-primary btn-lg-full" onclick="generateForesight()">🔭 生成职业风控报告</button>'
+    + '<div class="result-box" id="fs-result"></div>'
+    + '<button class="btn btn-outline" id="fs-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'fs-result\')">📋 复制指令</button>'
+    + '<div class="feedback-bar" id="fb-foresight" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'foresight\',\'行业情报与风控\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'foresight\',\'行业情报与风控\',false,this)">👎 没帮助</button>'
+    + '</div>'
+    + '<div class="instruction"><strong>怎么用：</strong>诚实评估你的行业趋势和风险担忧 → 点击「生成AI指令」→ 复制 → 粘贴到 DeepSeek / Kimi / 豆包 等AI工具 → AI输出完整的职业风控和第二曲线设计报告。</div>';
+
+  var riskOptions = [
+    { id: 'age', name: '年龄歧视/35岁拐点' },
+    { id: 'industry', name: '行业衰退/被替代' },
+    { id: 'skill', name: '技能过时/AI替代' },
+    { id: 'health', name: '健康/精力下降' },
+    { id: 'platform', name: '平台依赖风险' },
+    { id: 'single_income', name: '单一收入来源' },
+    { id: 'competition', name: '年轻人竞争压力' },
+    { id: 'ceiling', name: '职业天花板' }
+  ];
+  var savedRisks = d.risks || [];
+  var riskHtml = '';
+  riskOptions.forEach(function(r) {
+    var checked = savedRisks.indexOf(r.id) >= 0 ? ' checked' : '';
+    riskHtml += '<label style="background:#1e293b;padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer">'
+      + '<input type="checkbox" id="fs-risk-' + r.id + '"' + checked + '> ' + r.name + '</label>';
+  });
+  document.getElementById('fs-risks').innerHTML = riskHtml;
+}
+
+function generateForesight() {
+  var resultBox = document.getElementById('fs-result');
+  showSpinner('fs-result');
+  useOneCredit(function() {
+    var risks = [];
+    document.querySelectorAll('#fs-risks input[type="checkbox"]:checked').forEach(function(cb) {
+      risks.push(cb.id.replace('fs-risk-', ''));
+    });
+    var data = {
+      industry: document.getElementById('fs-industry').value || '【未填】',
+      role: document.getElementById('fs-role').value || '【未填】',
+      age: parseInt(document.getElementById('fs-age').value) || 0,
+      trend: document.getElementById('fs-trend').value || '【未填】',
+      risks: risks
+    };
+    AppState.userData.foresight = data;
+    saveDrafts();
+
+    var riskLabels = { age: '年龄歧视/35岁拐点', industry: '行业衰退', skill: '技能过时/AI替代', health: '健康/精力', platform: '平台依赖', single_income: '单一收入来源', competition: '年轻人竞争', ceiling: '职业天花板' };
+    var riskDesc = risks.map(function(r){ return riskLabels[r] || r; }).join('、');
+
+    var trendLabels = { exploding: '爆发式增长', growing: '稳健增长', flat: '增长停滞', declining: '明显下滑' };
+
+    var raw = '你是一位资深职业风控顾问，专注于帮助中高端职场人士识别职业风险、设计对冲策略和第二曲线。请根据以下信息，做一份职业风控与行业情报分析。\n\n'
+      + '## 用户职业信息\n'
+      + '- 行业：' + data.industry + '\n'
+      + '- 职能：' + data.role + '\n'
+      + '- 年龄：' + data.age + '岁\n'
+      + '- 用户对行业的感受：' + (trendLabels[data.trend] || data.trend) + '\n'
+      + '- 已标记的风险：' + (riskDesc || '未选择') + '\n\n'
+      + '## 请按以下框架输出职业风控报告\n\n'
+      + '### 一、行业前景扫描\n'
+      + '- 该行业未来3-5年的发展趋势和关键变量\n'
+      + '- 该职能在行业中的供需变化趋势\n'
+      + '- 同行业同龄人的典型职业路径和分化节点\n\n'
+      + '### 二、职业脆弱性评估\n'
+      + '- 用户的"年龄+行业+职能"组合在市场上的脆弱程度（1-10分，附详细理由）\n'
+      + '- 最脆弱的维度是什么？最稳固的维度是什么？\n'
+      + '- 如果行业发生系统性风险（如政策变化、技术替代），用户的抗风险能力如何？\n\n'
+      + '### 三、风险应对策略\n'
+      + '- 针对每个标记风险，给出具体可操作的应对方案\n'
+      + '- 区分"短期缓解"和"长期根治"两类动作\n'
+      + '- 哪些风险可以买保险（如收入保障险、职业责任险等）来对冲？\n\n'
+      + '### 四、第二曲线设计\n'
+      + '- 给出2-3条可以并行发展的Plan B方向\n'
+      + '- 每条Plan B的启动门槛（时间/资金/技能/人脉）\n'
+      + '- 每条Plan B的12个月和36个月预期收益\n\n'
+      + '### 五、窗口期判断\n'
+      + '- 用户还有多长的"安全窗口期"来做职业调整？\n'
+      + '- 窗口期内的优先动作排序\n'
+      + '- 窗口关闭后的兜底方案\n\n'
+      + '## 重要规则\n'
+      + '- 不要制造恐慌，但要诚实面对风险\n'
+      + '- 每条建议都要有具体的行动步骤\n'
+      + '- 如信息不足，明确指出需要补充什么来判断';
+
+    var prompt = wrapPrompt(raw, '行业情报与风控', '');
+    resultBox.classList.remove('loading');
+    resultBox.textContent = prompt;
+    var copyBtn = document.getElementById('fs-copy-btn');
+    if (copyBtn) copyBtn.style.display = 'inline-block';
+    showFeedback('foresight');
+  }, function(err) {
+    document.getElementById('fs-result').classList.remove('show');
+    showToast(err, true);
+  });
+}
+
 function initPositioning() {
   var container = document.getElementById('positioning-container');
   var d = AppState.userData.positioning || {};
@@ -1009,6 +1440,11 @@ function initPositioning() {
     + '<button class="btn btn-primary btn-lg-full" onclick="processPositioning()">🧬 生成职业定位AI指令</button>'
     + '<div class="result-box" id="positioning-result"></div>'
     + '<button class="btn btn-outline" id="positioning-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'positioning-result\')">📋 复制指令</button>'
+    + '<div class="feedback-bar" id="fb-positioning" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'positioning\',\'职业定位\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'positioning\',\'职业定位\',false,this)">👎 没帮助</button>'
+    + '</div>'
     + '<div class="instruction"><strong>怎么用：</strong>认真填写以上信息（越诚实分析越准）→ 点击「生成AI指令」→ 复制 → 粘贴到 DeepSeek / Kimi / 豆包 等AI工具 → AI输出完整的职业定位分析报告，包含：四象限画像、竞争优势、职业锚点、发展建议。</div>';
 }
 
@@ -1127,6 +1563,7 @@ function processPositioning() {
     resultBox.classList.remove('loading');
     resultBox.textContent = prompt;
     document.getElementById('positioning-copy-btn').style.display = 'inline-block';
+    showFeedback('positioning');
     savePositioningData();
   }, function(err) {
     document.getElementById('positioning-result').classList.remove('show');
@@ -1220,6 +1657,11 @@ function initRoadmap() {
     + '<button class="btn btn-primary btn-lg-full" onclick="processRoadmap()">🗺️ 生成职业路线AI指令</button>'
     + '<div class="result-box" id="roadmap-result"></div>'
     + '<button class="btn btn-outline" id="roadmap-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'roadmap-result\')">📋 复制指令</button>'
+    + '<div class="feedback-bar" id="fb-roadmap" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'roadmap\',\'职业路线\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'roadmap\',\'职业路线\',false,this)">👎 没帮助</button>'
+    + '</div>'
     + '<div class="instruction"><strong>怎么用：</strong>诚实填写当前状态和目标（信息越真实AI建议越靠谱）→ 点击生成指令 → 复制 → 粘贴到AI工具 → AI输出3条路径对比分析+风险评估+90天冲刺计划。</div>';
 }
 
@@ -1334,6 +1776,7 @@ function processRoadmap() {
     resultBox.classList.remove('loading');
     resultBox.textContent = prompt;
     document.getElementById('roadmap-copy-btn').style.display = 'inline-block';
+    showFeedback('roadmap');
     saveRoadmapData();
   }, function(err) {
     document.getElementById('roadmap-result').classList.remove('show');
@@ -1367,7 +1810,13 @@ function initToolkit() {
     + '<div id="toolkit-tab-content"></div>'
     + '<div class="result-box" id="toolkit-result"></div>'
     + '<button class="btn btn-outline" id="toolkit-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'toolkit-result\')">📋 复制指令</button>'
-    + '<div class="instruction"><strong>怎么用：</strong>选择场景 → 填写你的具体情况 → 生成AI指令 → 粘贴到AI工具 → 获得专业输出。</div>';
+    + '<div class="feedback-bar" id="fb-toolkit" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'toolkit\',\'职业能力\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'toolkit\',\'职业能力\',false,this)">👎 没帮助</button>'
+    + '</div>'
+    + '<div class="instruction"><strong>怎么用：</strong>选择场景 → 填写你的具体情况 → 生成AI指令 → 粘贴到AI工具 → 获得专业输出。</div>'
+    + '<div class="connector-banner"><strong>⚡ 需要具体执行？</strong> 能力建模是战略层——看清差距。具体简历优化、面试话术、谈薪策略的实战执行，请使用 <a href="https://andy-miaoan.github.io/AI-Interview-Tools/面试私教/工具_面试私教工作台.html" target="_blank" style="color:#22c55e;text-decoration:underline">面试私教工作台 →</a></div>';
   switchToolkitTab('resume');
 }
 
@@ -1514,6 +1963,7 @@ function processToolkit() {
     resultBox.classList.remove('loading');
     resultBox.textContent = prompt;
     document.getElementById('toolkit-copy-btn').style.display = 'inline-block';
+    showFeedback('toolkit');
     saveToolkitData();
   }, function(err) {
     document.getElementById('toolkit-result').classList.remove('show');
@@ -1554,7 +2004,13 @@ function initCombat() {
     + '<div id="combat-tab-content"></div>'
     + '<div class="result-box" id="combat-result"></div>'
     + '<button class="btn btn-outline" id="combat-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'combat-result\')">📋 复制指令</button>'
-    + '<div class="instruction"><strong>怎么用：</strong>选择实战场景 → 填写你的具体情况 → 生成AI指令 → 粘贴到AI工具 → AI作为你的职业教练进行深度分析和训练。</div>';
+    + '<div class="feedback-bar" id="fb-combat" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'combat\',\'职业实战\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'combat\',\'职业实战\',false,this)">👎 没帮助</button>'
+    + '</div>'
+    + '<div class="instruction"><strong>怎么用：</strong>选择实战场景 → 填写你的具体情况 → 生成AI指令 → 粘贴到AI工具 → AI作为你的职业教练进行深度分析和训练。</div>'
+    + '<div class="connector-banner"><strong>⚡ 需要实战执行？</strong> 实战导航是战略层——告诉你往哪打。具体的简历优化、模拟面试、谈薪话术，请使用 <a href="https://andy-miaoan.github.io/AI-Interview-Tools/面试私教/工具_面试私教工作台.html" target="_blank" style="color:#22c55e;text-decoration:underline">面试私教工作台 →</a></div>';
   switchCombatTab('resume');
 }
 
@@ -1743,6 +2199,7 @@ function processCombat() {
     resultBox.classList.remove('loading');
     resultBox.textContent = prompt;
     document.getElementById('combat-copy-btn').style.display = 'inline-block';
+    showFeedback('combat');
     saveCombatData();
   }, function(err) {
     document.getElementById('combat-result').classList.remove('show');
@@ -1781,6 +2238,11 @@ function initReview() {
     + '<div id="review-tab-content"></div>'
     + '<div class="result-box" id="review-result"></div>'
     + '<button class="btn btn-outline" id="review-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'review-result\')">📋 复制指令</button>'
+    + '<div class="feedback-bar" id="fb-review" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'review\',\'职业复盘\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'review\',\'职业复盘\',false,this)">👎 没帮助</button>'
+    + '</div>'
     + '<div class="instruction"><strong>怎么用：</strong>填写你的复盘数据 → 生成AI指令 → 粘贴到AI工具 → AI帮你做深度复盘分析，揭示你忽略的模式和盲点。</div>';
   switchReviewMode('weekly');
 }
@@ -1942,6 +2404,7 @@ function processReview() {
     resultBox.classList.remove('loading');
     resultBox.textContent = prompt;
     document.getElementById('review-copy-btn').style.display = 'inline-block';
+    showFeedback('review');
     saveReviewData();
   }, function(err) {
     document.getElementById('review-result').classList.remove('show');
@@ -1979,6 +2442,11 @@ function initOnboarding() {
     + '<div id="onboard-tab-content"></div>'
     + '<div class="result-box" id="onboard-result"></div>'
     + '<button class="btn btn-outline" id="onboard-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'onboard-result\')">📋 复制指令</button>'
+    + '<div class="feedback-bar" id="fb-onboard" style="display:none">'
+    + '<span class="fb-label">AI回答对你有帮助吗？</span>'
+    + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'onboard\',\'入职陪跑\',true,this)">👍 有帮助</button>'
+    + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'onboard\',\'入职陪跑\',false,this)">👎 没帮助</button>'
+    + '</div>'
     + '<div class="instruction"><strong>怎么用：</strong>入职前选「90天计划」做规划，入职后遇到问题选「风险诊断」或「倦怠诊断」，感觉不对劲选「双向评估」帮你判断这个公司适不适合你。AI给你系统化的融入方案和决策支撑。</div>';
   switchOnboardMode('plan');
 }
@@ -2200,6 +2668,7 @@ function processOnboard() {
     resultBox.classList.remove('loading');
     resultBox.textContent = prompt;
     document.getElementById('onboard-copy-btn').style.display = 'inline-block';
+    showFeedback('onboard');
     saveOnboardData();
   }, function(err) {
     document.getElementById('onboard-result').classList.remove('show');
@@ -2232,6 +2701,34 @@ function escapeHTML(str) {
   div.textContent = str || '';
   return div.innerHTML;
 }
+
+// ========== 客户分享链接生成 ==========
+function showShareLink() {
+  var overlay = document.getElementById('shareOverlay');
+  var userName = (currentSession && currentSession.userName) || (document.getElementById('userName').textContent.trim()) || '安迪的朋友';
+  // 清理名称中的特殊字符
+  var refName = encodeURIComponent(userName.replace(/[^一-龥a-zA-Z0-9_\-\s]/g, '').trim() || '安迪的朋友');
+  var baseUrl = window.location.origin + window.location.pathname;
+  var shareUrl = baseUrl + '?ref=' + refName;
+  document.getElementById('shareLinkInput').value = shareUrl;
+  overlay.classList.add('show');
+}
+
+function copyShareLink() {
+  var input = document.getElementById('shareLinkInput');
+  input.select();
+  navigator.clipboard.writeText(input.value).then(function() {
+    showToast('✅ 客户链接已复制！粘贴发给朋友即可');
+  }).catch(function() {
+    showToast('复制失败，请手动选择复制', true);
+  });
+}
+
+// 关闭分享弹窗（点击背景关闭）
+document.addEventListener('click', function(e) {
+  var overlay = document.getElementById('shareOverlay');
+  if (e.target === overlay) overlay.classList.remove('show');
+});
 
 function showToast(msg, warn) {
   var t = document.getElementById('toast');
@@ -2277,4 +2774,33 @@ function bindNavEvents() {
       if (mod) navTo(mod);
     });
   });
+}
+
+// ============================================================
+// 反馈按钮系统：用户对AI回答质量的反馈收集
+// ============================================================
+function showFeedback(mid) {
+  var fb = document.getElementById('fb-' + mid);
+  if (fb) { fb.className = 'feedback-bar show'; }
+}
+
+function submitFeedback(mid, mname, helpful, btn) {
+  var FB_KEY = 'career_feedback';
+  var list = JSON.parse(localStorage.getItem(FB_KEY) || '[]');
+  list.unshift({
+    moduleId: mid,
+    moduleName: mname,
+    helpful: helpful,
+    timestamp: new Date().toISOString(),
+    date: new Date().toLocaleDateString('zh-CN')
+  });
+  if (list.length > 500) list.length = 500;
+  localStorage.setItem(FB_KEY, JSON.stringify(list));
+  var bar = document.getElementById('fb-' + mid);
+  if (bar) {
+    var msg = helpful
+      ? '感谢反馈！你的评价将帮助我们优化提示词质量。'
+      : '收到反馈！我们会持续优化提示词，让它对你更有效。';
+    bar.innerHTML = '<span style="font-size:12px;color:#2563eb;opacity:.7">✅ ' + msg + '</span>';
+  }
 }

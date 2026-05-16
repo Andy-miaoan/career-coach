@@ -4,11 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;">
-<title>安迪AI 陪跑工作台</title>
+<title>安迪·职业陪跑</title>
 <link rel="stylesheet" href="css/styles.css?v=8">
 <style>
   .module-content { max-width:1200px !important; margin:0 auto !important; }
   #mainApp { width:100%; }
+  .nav-badge-free { font-size:10px; background:#22c55e; color:#fff; padding:2px 6px; border-radius:10px; margin-left:6px; }
+  .nav-badge-link { font-size:10px; color:#94a3b8; margin-left:4px; }
+  .btn-free-entry { display:block; width:100%; margin-top:10px; padding:12px; background:transparent; border:1px dashed rgba(34,197,94,.4); color:#22c55e; border-radius:12px; font-size:14px; cursor:pointer; transition:all 0.15s; }
+  .btn-free-entry:hover { background:rgba(34,197,94,.08); border-color:#22c55e; }
+  .free-mode-banner { background:linear-gradient(135deg,#1a3a1a,#0d2818); color:#22c55e; padding:8px 16px; text-align:center; font-size:12px; border-bottom:1px solid rgba(34,197,94,.15); }
+  .free-mode-banner a { color:#4ade80; text-decoration:underline; cursor:pointer; }
+  .share-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1000; align-items:center; justify-content:center; }
+  .share-overlay.show { display:flex; }
+  .share-card { background:#0f172a; border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:28px; max-width:480px; width:90%; color:#e2e8f0; }
+  .share-card h3 { margin:0 0 8px; font-size:18px; }
+  .share-card .subt { color:#94a3b8; font-size:13px; margin:0; }
 </style>
 </head>
 <body>
@@ -18,14 +29,15 @@
      ============================================================ -->
 <div class="login-overlay" id="loginScreen">
     <div class="login-card">
-        <div class="brand">安迪AI 陪跑工作台</div>
-        <h2>AI 职业陪跑</h2>
-        <div class="subt">从诊断定位到入职落地<br>覆盖职业发展全周期的AI陪跑系统</div>
+        <div class="brand">安迪·职业陪跑</div>
+        <h2>职业生涯的长期参谋</h2>
+        <div class="subt">不是AI替代你的判断<br>是一个懂你的职业参谋，陪你把每一步走对</div>
         <div class="ref-tag" id="refTag" style="display:none">推荐人：<span id="refName"></span></div>
         <input type="text" id="activationInput" placeholder="请输入激活码" maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();activate();}">
         <div class="login-hint" id="loginHint" style="display:none" onclick="fillLastCode()" title="点击填入上次使用的激活码">上次使用：<span id="lastCodeHint"></span></div>
         <div class="login-err" id="loginErr"></div>
         <button type="button" class="btn btn-activate" id="activateBtn" onclick="activate()">激活使用</button>
+        <button type="button" class="btn btn-free-entry" id="freeEntryBtn" onclick="enterFreeMode()">🧬 免费体验职业基因检测</button>
         <div class="login-info">还没有激活码？<br>加微信：miaoan1913 获取<br><br>月卡 ￥499(30天/20次) · 季卡 ￥1199(90天/70次) · 年卡 ￥4999(365天/300次)<br><br><span id="syncStatusLogin" onclick="showTokenSetup()">设置云端同步（跨设备共享）</span></div>
     </div>
 </div>
@@ -51,17 +63,23 @@
      ============================================================ -->
 <div id="mainApp" style="display:none">
 
+<!-- 免费用��提示条 -->
+<div class="free-mode-banner" id="freeModeBanner" style="display:none">
+  🧬 免费体验模式 — 仅开放职业基因检测和个人档案。 <a onclick="document.getElementById('loginScreen').style.display='';document.getElementById('mainApp').style.display='none';exitFreeMode();">输入激活码解锁全部功能 →</a>
+</div>
+
 <!-- Header -->
 <header class="app-header">
   <div class="header-left">
-    <span class="header-logo-text">🎯 AI 职业陪跑</span>
-    <span class="header-brand-text">安迪AI 陪跑工作台 · AI 职业陪跑</span>
+    <span class="header-logo-text">🎯 安迪·职业陪跑</span>
+    <span class="header-brand-text">安迪·职业陪跑 · 职业生涯的长期参谋</span>
   </div>
   <div class="header-right">
     <span class="header-user" id="userName"></span>
     <span id="wechatBound" class="header-usage" style="display:none"></span>
     <span class="header-usage">剩余次数：<b id="remainingUses">-</b> · 到期：<b id="expiryDate">-</b></span>
-<button class="btn btn-sm btn-header" onclick="logout()">退出</button>
+    <button class="btn btn-sm btn-header" onclick="logout()">退出</button>
+    <button class="btn btn-sm btn-header" onclick="showShareLink()">🔗 分享</button>
     <button class="btn btn-sm btn-header" onclick="showTokenSetup()">云端同步</button>
   </div>
 </header>
@@ -71,11 +89,11 @@
      ============================================================ -->
 <aside class="sidebar">
   <div class="sidebar-header">
-    <a class="sidebar-logo" href="#" onclick="navTo('positioning')">
+    <a class="sidebar-logo" href="#" onclick="navTo('genetest')">
       <span class="logo-icon">🎯</span>
-      <span>AI 职业陪跑</span>
+      <span>安迪·职业陪跑</span>
     </a>
-    <div class="sidebar-subtitle">安迪AI调度师</div>
+    <div class="sidebar-subtitle">职业生涯的长期参谋</div>
   </div>
 
   <nav class="sidebar-nav">
@@ -88,8 +106,14 @@
 
     <div class="nav-section-title">诊断与定位</div>
 
-    <button class="nav-item active" data-module="positioning" onclick="navTo('positioning')">
+    <button class="nav-item active" data-module="genetest" onclick="navTo('genetest')">
       <span class="nav-icon">🧬</span>
+      <span>职业基因检测</span>
+      <span class="nav-badge-free">免费</span>
+    </button>
+
+    <button class="nav-item" data-module="positioning" onclick="navTo('positioning')">
+      <span class="nav-icon">🎯</span>
       <span>职业定位</span>
     </button>
 
@@ -98,16 +122,30 @@
       <span>职业路线</span>
     </button>
 
+    <div class="nav-section-title">战略与设计</div>
+
+    <button class="nav-item" data-module="bizmodel" onclick="navTo('bizmodel')">
+      <span class="nav-icon">💎</span>
+      <span>个人商业模式</span>
+    </button>
+
+    <button class="nav-item" data-module="foresight" onclick="navTo('foresight')">
+      <span class="nav-icon">🔭</span>
+      <span>行业情报与风控</span>
+    </button>
+
     <div class="nav-section-title">能力与实战</div>
 
     <button class="nav-item" data-module="toolkit" onclick="navTo('toolkit')">
       <span class="nav-icon">🧰</span>
-      <span>职业能力</span>
+      <span>能力建模</span>
+      <span class="nav-badge-link">→面试私教</span>
     </button>
 
     <button class="nav-item" data-module="combat" onclick="navTo('combat')">
-      <span class="nav-icon">⚔️</span>
-      <span>职业实战</span>
+      <span class="nav-icon">⚡</span>
+      <span>实战导航</span>
+      <span class="nav-badge-link">→面试私教</span>
     </button>
 
     <div class="nav-section-title">落地与持续</div>
@@ -124,7 +162,7 @@
   </nav>
 
   <div style="padding: 16px 20px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 11px; color: #64748b;">
-    v2.2 · 个人档案 · 瓶颈诊断 · 激活码登录
+    v3.0 · 基因检测 · 商业模式 · 行业风控
   </div>
 </aside>
 
@@ -137,61 +175,88 @@
   <section class="module-content" id="module-profile">
     <div class="module-header">
       <h1 class="module-title">👤 个人档案</h1>
-      <p class="module-desc">建立你的个人档案后，所有模块的AI指令都将自动包含你的背景信息，让分析更加精准。档案仅保存在本地浏览器和你的云端同步中，不会上传到任何第三方。</p>
+      <p class="module-desc">建立你的个人档案后，所有模块的分析都将自动包含你的背景信息，让每一次判断都更精准。档案仅保存在本地浏览器和你的云端同步中，不会上传到任何第三方。</p>
     </div>
     <div id="profile-container"></div>
   </section>
 
-  <!-- ========== 模块1：职业定位 ========== -->
-  <section class="module-content active" id="module-positioning">
+  <!-- ========== 模块1：职业基因检测 [免费入口] ========== -->
+  <section class="module-content active" id="module-genetest">
     <div class="module-header">
-      <h1 class="module-title">🧬 职业定位中心</h1>
-      <p class="module-desc">职业定位是职业发展的起点。输入你的背景和能力数据，AI帮你从四个象限全面分析，生成专业的职业定位报告。</p>
+      <h1 class="module-title">🧬 职业基因检测 <span style="font-size:14px;color:#22c55e;font-weight:400;">免费</span></h1>
+      <p class="module-desc">你认识自己吗？输入你的现状和困惑，安迪帮你生成一份四象限职业基因图谱——看清优势区、盲区、潜力区和风险区，让你第一次系统地"看见"自己的职业底层代码。</p>
+    </div>
+    <div id="genetest-container"></div>
+  </section>
+
+  <!-- ========== 模块2：职业定位 ========== -->
+  <section class="module-content" id="module-positioning">
+    <div class="module-header">
+      <h1 class="module-title">🎯 职业定位</h1>
+      <p class="module-desc">在基因检测的基础上，深度聚焦——你的不可替代性是什么？什么样的战场最需要你？安迪帮你从四个象限全面剖析，回答那个最关键的问题："我到底该在哪个赛道发力？"</p>
     </div>
     <div id="positioning-container"></div>
   </section>
 
-  <!-- ========== 模块2：职业路线 ========== -->
+  <!-- ========== 模块3：职业路线 ========== -->
   <section class="module-content" id="module-roadmap">
     <div class="module-header">
       <h1 class="module-title">🗺️ 职业路线规划</h1>
-      <p class="module-desc">填写你的现状和目标，AI帮你设计3条可选路径，对比风险与收益，并生成90天冲刺计划。</p>
+      <p class="module-desc">从VP到C-suite，从职业经理人到合伙人——路径不是一条直线。安迪帮你设计3条可选路径，对比风险与收益，生成90天冲刺计划，让每一步都走在正确的方向上。</p>
     </div>
     <div id="roadmap-container"></div>
   </section>
 
-  <!-- ========== 模块3：职业能力 ========== -->
+  <!-- ========== 模块4：个人商业模式 [新增] ========== -->
+  <section class="module-content" id="module-bizmodel">
+    <div class="module-header">
+      <h1 class="module-title">💎 个人商业模式设计</h1>
+      <p class="module-desc">如果把你当成一家公司，你的"商业模式"是什么？你靠什么赚钱——卖时间（工资）、卖产品（IP）、卖服务（咨询）、还是卖认知（讲课）？安迪帮你盘点资产、设计收入结构、找到属于你的杠杆。</p>
+    </div>
+    <div id="bizmodel-container"></div>
+  </section>
+
+  <!-- ========== 模块5：行业情报与风控 [新增] ========== -->
+  <section class="module-content" id="module-foresight">
+    <div class="module-header">
+      <h1 class="module-title">🔭 行业情报与职业风控</h1>
+      <p class="module-desc">信息差是中高端职业人最大的隐性成本。薪资对标、行业趋势、机会地图、35/40岁拐点预警——安迪帮你拉高视野，提前看清风险，设计Plan B。不是等风来，是提前换航道。</p>
+    </div>
+    <div id="foresight-container"></div>
+  </section>
+
+  <!-- ========== 模块6：能力建模 [重定位：战略层] ========== -->
   <section class="module-content" id="module-toolkit">
     <div class="module-header">
-      <h1 class="module-title">🧰 职业能力工具箱</h1>
-      <p class="module-desc">选择你需要的场景，填写关键信息，AI帮你生成专业的简历、面试话术、谈薪策略或职业决策分析。</p>
+      <h1 class="module-title">🧰 能力建模与差距分析</h1>
+      <p class="module-desc">你现在的武器库里有什么？还缺什么？安迪帮你建立能力模型、诊断差距、制定学习路径。这是战略层的"装备盘点"——具体的简历优化、面试话术等战术执行，衔接「面试私教」完成。</p>
     </div>
     <div id="toolkit-container"></div>
   </section>
 
-  <!-- ========== 模块4：职业实战 ========== -->
+  <!-- ========== 模块7：实战导航 [重定位：导航层→面试私教] ========== -->
   <section class="module-content" id="module-combat">
     <div class="module-header">
-      <h1 class="module-title">⚔️ 职业实战中心</h1>
-      <p class="module-desc">简历优化、模拟面试、技能训练和案例学习。输入你的具体情况，AI为你量身定制实战方案。</p>
+      <h1 class="module-title">⚡ 实战导航</h1>
+      <p class="module-desc">我该面哪类公司？该谈什么级别的offer？这个阶段该不该跳？安迪帮你做目标判断和策略选择——这是"导航"，告诉你往哪打。具体的简历优化、模拟面试、谈薪话术，衔接「面试私教」来执行。</p>
     </div>
     <div id="combat-container"></div>
   </section>
 
-  <!-- ========== 模块5：职业复盘 ========== -->
+  <!-- ========== 模块8：职业复盘 ========== -->
   <section class="module-content" id="module-review">
     <div class="module-header">
-      <h1 class="module-title">🔄 职业复盘中心</h1>
-      <p class="module-desc">每周微调、每月深盘。填写你的复盘数据，AI帮你从多个维度系统审视职业发展状况，给出行动建议。</p>
+      <h1 class="module-title">🔄 职业复盘</h1>
+      <p class="module-desc">每周微调，每月深盘。你的职业数据不断回流，安迪陪你从多个维度系统审视——你是在正确的路上加速，还是在错误的路上优化？复盘不只是回顾，是校准方向。</p>
     </div>
     <div id="review-container"></div>
   </section>
 
-  <!-- ========== 模块6：入职陪跑 ========== -->
+  <!-- ========== 模块9：入职陪跑 ========== -->
   <section class="module-content" id="module-onboarding">
     <div class="module-header">
       <h1 class="module-title">🚀 入职90天陪跑</h1>
-      <p class="module-desc">入职新公司的前90天是最关键的窗口期。填写你的新岗位信息，AI帮你设计融入计划或诊断当前风险。</p>
+      <p class="module-desc">入职新公司的前90天，决定了你在新组织的未来3年。安迪帮你设计融入计划、诊断初期风险、规划关键动作——让你在新棋盘上，落下第一颗正确的子。</p>
     </div>
     <div id="onboarding-container"></div>
   </section>
@@ -200,9 +265,26 @@
 
 <!-- Footer -->
 <footer class="app-footer">
-  <span>安迪AI调度师</span>
+  <span>安迪·职业陪跑 · 职业生涯的长期参谋</span>
   <span>客服微信：miaoan1913</span>
 </footer>
+
+<!-- 分享链接弹窗 -->
+<div class="share-overlay" id="shareOverlay">
+  <div class="share-card">
+    <h3>🔗 分享安迪·职业陪跑</h3>
+    <p class="subt">复制以下链接发给朋友，对方打开后会看到你的推荐信息。</p>
+    <div style="display:flex;gap:8px;margin:16px 0">
+      <input type="text" id="shareLinkInput" readonly style="flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:#1e293b;color:#e2e8f0;font-size:13px" onclick="this.select()">
+      <button class="btn btn-sm" onclick="copyShareLink()" style="white-space:nowrap">📋 复制链接</button>
+    </div>
+    <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">
+      <p>对方打开链接后，登录页会显示"推荐人：你的名字"，提升信任和转化。</p>
+      <p style="margin-top:8px">💡 提示：将此链接发到朋友圈/微信群/HR群，或一对一发给需要的朋友。</p>
+    </div>
+    <button class="btn btn-outline" onclick="document.getElementById('shareOverlay').classList.remove('show')">关闭</button>
+  </div>
+</div>
 
 </div><!-- /#mainApp -->
 
