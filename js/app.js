@@ -57,13 +57,8 @@ async function callDeepSeekAPI(systemPrompt, userMessage, resultBoxId, copyBtnId
     resultBox.innerHTML = ''
       + '<div class="ai-tool-section">'
       + '<div class="ai-tool-title">🚀 选择AI工具，一键打开使用</div>'
-      + '<p class="ai-tool-hint">点击按钮自动复制指令并打开对应AI工具，在新页面粘贴（Ctrl+V）即可</p>'
-      + '<div class="ai-tool-grid">';
-    for (var i = 0; i < AI_TOOLS.length; i++) {
-      var t = AI_TOOLS[i];
-      resultBox.innerHTML += '<button class="ai-tool-btn" onclick="openAITool(\'' + t.key + '\')" title="' + escapeHTML(t.desc) + '">' + t.icon + ' 打开' + t.name + '</button>';
-    }
-    resultBox.innerHTML += '</div>'
+      + '<p class="ai-tool-hint">点击按钮自动复制指令并打开对应AI工具</p>'
+      + buildAIToolButtons('在新页面粘贴（Ctrl+V）即可')
       + '<details class="ai-prompt-details" style="margin-top:14px">'
       + '<summary style="cursor:pointer;color:#94a3b8;font-size:13px">📋 查看/手动复制完整指令</summary>'
       + '<pre id="ai-prompt-cache" style="background:#1e293b;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:16px;margin-top:8px;font-size:13px;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow-y:auto;line-height:1.7">' + escapeHTML(prompt) + '</pre>'
