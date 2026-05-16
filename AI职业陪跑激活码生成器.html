@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>激活码与分销管理 · 安迪AI 职业陪跑</title>
+<style>
+:root {
+  --bg: #0f172a; --card: #1e293b; --border: #334155;
+  --primary: #3b82f6; --primary-dark: #2563eb; --text: #e2e8f0; --text2: #94a3b8;
+  --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+.container { max-width:740px; margin:0 auto; padding:24px 16px; }
+
+.card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:28px 24px; margin-bottom:16px; box-shadow:0 4px 24px rgba(0,0,0,.3); }
+
+.brand { font-size:12px; color:var(--primary); letter-spacing:2px; margin-bottom:2px; font-weight:500; text-align:center; }
+h1 { font-size:22px; text-align:center; margin-bottom:2px; }
+.sub { font-size:12px; color:var(--text2); margin-bottom:20px; line-height:1.6; text-align:center; }
+
+/* Tabs */
+.tabs { display:flex; gap:0; margin-bottom:20px; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.tab { flex:1; text-align:center; padding:10px; font-size:13px; font-weight:600; cursor:pointer; background:rgba(0,0,0,.2); color:var(--text2); transition:.2s; border:none; font-family:inherit; }
+.tab.active { background:rgba(59,130,246,.15); color:var(--primary); }
+.tab:hover:not(.active) { color:var(--text); }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+label { display:block; font-size:13px; color:var(--text2); margin:14px 0 4px; font-weight:600; }
+input, select, textarea { width:100%; padding:10px 14px; border:1px solid var(--border); border-radius:10px; background:#0f172a; color:var(--text); font-size:14px; font-family:inherit; }
+input:focus, select:focus, textarea:focus { outline:none; border-color:var(--primary); }
+select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'%3E%3C/path%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:36px; }
+select option { background:#1e293b; color:var(--text); }
+
+.plan-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+.btn { padding:12px; border:none; border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; transition:.2s; letter-spacing:.5px; }
+.btn-gen { width:100%; background:linear-gradient(135deg,var(--primary),var(--primary-dark)); color:#fff; box-shadow:0 4px 16px rgba(59,130,246,.25); margin-top:16px; }
+.btn-gen:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(59,130,246,.35); }
+.btn-copy { width:100%; background:rgba(59,130,246,.1); color:var(--primary); margin-top:8px; border:1px solid rgba(59,130,246,.2); }
+.btn-copy:hover { background:rgba(59,130,246,.18); }
+.btn-sm { padding:7px 14px; font-size:12px; width:auto; border-radius:8px; }
+.btn-danger { background:rgba(239,68,68,.1); color:var(--danger); border:1px solid rgba(239,68,68,.2); }
+.btn-danger:hover { background:rgba(239,68,68,.2); }
+.btn-export { width:100%; background:rgba(16,185,129,.1); color:var(--success); border:1px solid rgba(16,185,129,.2); margin-top:10px; }
+
+.output-section { margin-top:18px; display:none; }
+.output-section.show { display:block; }
+.code-box { background:#0d1117; border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; margin-top:10px; }
+.code { font-size:22px; font-weight:700; color:#60a5fa; letter-spacing:2px; font-family:'SF Mono','Fira Code','Courier New',monospace; word-break:break-all; }
+.code-info { font-size:12px; color:var(--text2); margin-top:8px; line-height:1.6; }
+
+/* Referrer list */
+.ref-list { margin-top:12px; }
+.ref-item { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:rgba(0,0,0,.2); border:1px solid var(--border); border-radius:10px; margin-bottom:6px; flex-wrap:wrap; gap:8px; }
+.ref-item .info { flex:1; min-width:150px; }
+.ref-item .info .name { font-size:14px; font-weight:600; }
+.ref-item .info .detail { font-size:11px; color:var(--text2); margin-top:2px; }
+.ref-item .stats { text-align:right; }
+.ref-item .stats .num { font-size:18px; font-weight:700; color:var(--primary); }
+.ref-item .stats .lbl { font-size:11px; color:var(--text2); }
+.add-ref-row { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.add-ref-row input { flex:1; min-width:100px; }
+.add-ref-row .btn-sm { flex-shrink:0; }
+
+/* Stats */
+.stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:16px; }
+.stat-card { background:rgba(0,0,0,.25); border:1px solid var(--border); border-radius:12px; padding:18px; text-align:center; }
+.stat-card .num { font-size:28px; font-weight:700; color:var(--primary); }
+.stat-card .num.green { color:var(--success); }
+.stat-card .lbl { font-size:11px; color:var(--text2); margin-top:4px; }
+
+/* Table */
+.data-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+.data-table th { text-align:left; padding:8px 6px; color:var(--text2); font-weight:600; border-bottom:1px solid var(--border); font-size:11px; }
+.data-table td { padding:8px 6px; border-bottom:1px solid rgba(255,255,255,.04); color:var(--text2); }
+.data-table .code-col { color:#60a5fa; font-family:'SF Mono','Courier New',monospace; font-size:11px; }
+.status-badge { display:inline-block; padding:3px 8px; border-radius:10px; font-size:10px; font-weight:600; }
+.status-generated { background:rgba(255,255,255,.06); color:var(--text2); }
+.status-sent { background:rgba(16,185,129,.1); color:var(--success); }
+.status-active { background:rgba(59,130,246,.15); color:var(--primary); }
+.clickable { cursor:pointer; transition:.15s; }
+.clickable:hover { color:var(--primary); }
+
+.toast { position:fixed; top:24px; left:50%; transform:translateX(-50%); background:rgba(59,130,246,.95); color:#fff; padding:10px 24px; border-radius:20px; font-size:14px; z-index:99; opacity:0; transition:.3s; pointer-events:none; box-shadow:0 8px 32px rgba(59,130,246,.3); }
+.toast.show { opacity:1; }
+.toast.err { background:rgba(239,68,68,.95); }
+
+.note { background:rgba(59,130,246,.04); border:1px solid rgba(59,130,246,.1); border-radius:10px; padding:14px; margin-top:14px; font-size:12px; color:rgba(59,130,246,.65); line-height:1.8; }
+
+@media(max-width:480px) {
+  .plan-row { grid-template-columns:1fr; }
+  .stat-cards { grid-template-columns:repeat(2,1fr); }
+  .add-ref-row { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="brand">安迪AI 职业陪跑</div>
+    <h1>激活码与分销管理</h1>
+    <p class="sub">激活码生成 + 分销人管理 + 佣金看板 · 三合一<br>所有数据仅存储在本机浏览器，不上传任何服务器</p>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('generate')">🎫 生成激活码</button>
+        <button class="tab" onclick="switchTab('referrer')">👥 分销人管理</button>
+        <button class="tab" onclick="switchTab('dashboard')">📊 分销看板</button>
+    </div>
+
+    <!-- Tab 1: Generate Code -->
+    <div class="tab-panel active" id="panel-generate">
+        <div class="card">
+            <h2 style="margin-bottom:4px">生成激活码</h2>
+            <label>客户称呼</label>
+            <input type="text" id="name" placeholder="如：张总 / XX公司老板">
+
+            <label>分销来源（谁介绍的）</label>
+            <select id="referrer">
+                <option value="">无分销来源（直接客户）</option>
+            </select>
+            <div style="font-size:11px;color:var(--text2);margin-top:3px">如无可选项，先去「分销人管理」添加分销人</div>
+
+            <div class="plan-row">
+                <div><label>套餐类型</label>
+                <select id="plan">
+                    <option value="month" selected>月卡 — ¥299/30天</option>
+                    <option value="quarter">季卡 — ¥799/90天</option>
+                    <option value="year">年卡 — ¥2999/365天</option>
+                    <option value="trial">体验卡 — 免费/7天/5次</option>
+                    <option value="custom">自定义天数</option>
+                </select></div>
+                <div><label>使用次数上限</label>
+                <select id="uses">
+                    <option value="0" selected>不限次数（月/季/年卡）</option>
+                    <option value="5">5次（体验卡）</option>
+                    <option value="10">10次</option>
+                    <option value="30">30次</option>
+                    <option value="50">50次</option>
+                    <option value="100">100次</option>
+                    <option value="200">200次</option>
+                </select></div>
+            </div>
+
+            <div id="customDaysBox" style="display:none"><label>自定义天数</label><input type="number" id="customDays" value="30" min="1" max="365"></div>
+
+            <label>微信绑定人数上限</label>
+            <select id="maxUsers">
+                <option value="0" selected>不限人数（默认）</option>
+                <option value="1">1人（仅购买者本人）</option>
+                <option value="2">2人</option>
+                <option value="3">3人</option>
+                <option value="5">5人</option>
+                <option value="10">10人</option>
+            </select>
+            <div style="font-size:11px;color:var(--text2);margin-top:3px">超过人数上限后，新微信号无法激活此码</div>
+
+            <button class="btn btn-gen" onclick="generateCode()">🎫 生成激活码</button>
+
+            <div class="output-section" id="output">
+                <div class="code-box">
+                    <div style="font-size:12px;color:var(--text2);margin-bottom:6px">激活码</div>
+                    <div class="code" id="codeDisplay"></div>
+                    <div class="code-info" id="codeInfo"></div>
+                </div>
+                <button class="btn btn-copy" onclick="copyCode()">📋 一键复制激活码</button>
+                <button class="btn btn-copy" onclick="copySendMsg()">💬 复制发给客户的话术</button>
+            </div>
+
+            <div class="note">
+                <strong>📌 操作流程：</strong><br>
+                1. 客户付款（说明介绍人）→ 填信息选分销人 → 点生成<br>
+                2. 把激活码发给客户 → 手动点「标记已发送」<br>
+                3. 客户输入激活码+绑定微信号 → 手动点「标记已激活」<br>
+                4. 佣金在「分销看板」中自动计算
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Referrer Management -->
+    <div class="tab-panel" id="panel-referrer">
+        <div class="card">
+            <h2 style="margin-bottom:4px">分销人管理</h2>
+            <p style="font-size:12px;color:var(--text2);margin-bottom:4px">添加你的分销伙伴，每个分销人有独立的专属推广链接用于追踪</p>
+
+            <div class="add-ref-row">
+                <input type="text" id="refName" placeholder="姓名/称呼">
+                <input type="text" id="refWx" placeholder="微信号（可选）">
+                <input type="number" id="refCommission" placeholder="佣金%" value="15" min="0" max="50" style="max-width:80px">
+                <button class="btn btn-copy btn-sm" onclick="addReferrer()" style="margin-top:0">+ 添加</button>
+            </div>
+
+            <div class="ref-list" id="refList" style="margin-top:14px">
+                <div style="font-size:12px;color:var(--text2);text-align:center;padding:20px">暂无分销人，上方添加</div>
+            </div>
+
+            <div class="note" style="margin-top:16px">
+                <strong>💡 两种分销方式：</strong><br>
+                <strong>方式一（手动）：</strong>客户找你购买 → 你问"谁介绍的" → 生成激活码时选分销人 → 佣金自动计算<br>
+                <strong>方式二（自动）：</strong>把下面的专属链接发给分销人 → 他转发给客户 → 客户打开系统会看到"推荐人：XX"<br>
+                <strong>佣金：</strong>套餐价格 × 佣金比例（月卡¥299×15%=¥45, 季卡¥799×15%=¥120, 年卡¥2999×15%=¥450）<br>
+                <strong>建议：</strong>两种方式同时用，链接自动追踪 + 手动选分销人双重保险
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 3: Dashboard -->
+    <div class="tab-panel" id="panel-dashboard">
+        <div class="card">
+            <h2 style="margin-bottom:4px">分销看板</h2>
+            <div class="stat-cards" id="statCards">
+                <div class="stat-card"><div class="num" id="statTotalSales">0</div><div class="lbl">总销售额 (元)</div></div>
+                <div class="stat-card"><div class="num green" id="statTotalCommission">0</div><div class="lbl">总佣金待付 (元)</div></div>
+                <div class="stat-card"><div class="num" id="statTotalRefs">0</div><div class="lbl">总分销人</div></div>
+                <div class="stat-card"><div class="num" id="statTotalCustomers">0</div><div class="lbl">总分销客户</div></div>
+            </div>
+
+            <h2 style="margin-top:20px">分销人业绩排行</h2>
+            <div id="refRanking" style="font-size:12px;color:var(--text2);padding:10px 0">暂无数据</div>
+
+            <button class="btn btn-export" onclick="exportData()">📥 导出分销数据 (CSV)</button>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom:4px">全部激活码记录</h2>
+            <div style="overflow-x:auto">
+            <table class="data-table">
+                <thead><tr>
+                    <th>时间</th><th>客户</th><th>套餐</th><th>分销人</th><th>佣金</th><th>状态</th><th>操作</th>
+                </tr></thead>
+                <tbody id="historyTable"><tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">暂无记录</td></tr></tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SECRET = "miaohan1913_AI_2026_KEY";
+const PLAN_DAYS = { month: 30, quarter: 90, year: 365, trial: 7 };
+const PLAN_PRICES = { month: 299, quarter: 799, year: 2999, trial: 0 };
+const PLAN_NAMES = { month: '月卡', quarter: '季卡', year: '年卡', trial: '体验卡' };
+const WORKBENCH_URL = 'https://andy-miaoan.github.io/career-coach/';
+
+// ============ Tab Switching ============
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('.tab[onclick*="'+name+'"]').classList.add('active');
+    document.getElementById('panel-'+name).classList.add('active');
+    if (name === 'dashboard') refreshDashboard();
+    if (name === 'generate') refreshReferrerSelect();
+}
+
+// ============ Referrer Management ============
+function getReferrers() {
+    try { return JSON.parse(localStorage.getItem('career_coach_referrers') || '[]'); } catch(e) { return []; }
+}
+function saveReferrers(list) {
+    localStorage.setItem('career_coach_referrers', JSON.stringify(list));
+}
+
+function addReferrer() {
+    var name = document.getElementById('refName').value.trim();
+    if (!name) { showToast('请填写分销人姓名', 'err'); return; }
+    var wx = document.getElementById('refWx').value.trim();
+    var commission = parseInt(document.getElementById('refCommission').value) || 15;
+    var list = getReferrers();
+    if (list.find(function(r){ return r.name === name; })) { showToast('该分销人已存在', 'err'); return; }
+    list.push({ id: 'REF' + Date.now().toString(36).toUpperCase(), name: name, wx: wx, commission: commission, createdAt: new Date().toISOString().slice(0,10) });
+    saveReferrers(list);
+    document.getElementById('refName').value = '';
+    document.getElementById('refWx').value = '';
+    renderReferrers();
+    refreshReferrerSelect();
+    showToast('✅ 分销人已添加');
+}
+
+function deleteReferrer(id) {
+    if (!confirm('确定删除该分销人？历史记录中的佣金数据会保留。')) return;
+    var list = getReferrers().filter(function(r){ return r.id !== id; });
+    saveReferrers(list);
+    renderReferrers();
+    refreshReferrerSelect();
+    showToast('已删除');
+}
+
+function renderReferrers() {
+    var list = getReferrers();
+    var container = document.getElementById('refList');
+    if (list.length === 0) {
+        container.innerHTML = '<div style="font-size:12px;color:var(--text2);text-align:center;padding:20px">暂无分销人，上方添加</div>';
+        return;
+    }
+    var history = getHistory();
+    container.innerHTML = list.map(function(r){
+        var refHistory = history.filter(function(h){ return h.referrerId === r.id; });
+        var activeCount = refHistory.filter(function(h){ return h.status === 'active'; }).length;
+        var totalCommission = refHistory.filter(function(h){ return h.status === 'active'; }).reduce(function(s,h){ return s + (h.commission || 0); }, 0);
+        var refLink = WORKBENCH_URL + '?ref=' + encodeURIComponent(r.name);
+        return '<div class="ref-item" style="flex-direction:column;align-items:stretch">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+            '<div class="info"><div class="name">'+escHtml(r.name)+' <span style="font-size:11px;color:var(--text2);font-weight:400">佣金'+r.commission+'%</span></div>' +
+            '<div class="detail">' + (r.wx ? '微信:'+escHtml(r.wx)+' · ' : '') + '添加于'+r.createdAt+'</div></div>' +
+            '<div style="display:flex;align-items:center;gap:8px">' +
+            '<div class="stats"><div class="num">'+activeCount+'</div><div class="lbl">已激活客户</div></div>' +
+            '<div class="stats" style="margin-left:8px"><div class="num" style="font-size:14px">¥'+totalCommission+'</div><div class="lbl">佣金待付</div></div>' +
+            '<button class="btn btn-sm btn-danger" onclick="deleteReferrer(\''+r.id+'\')" style="margin-left:auto">删除</button>' +
+            '</div>' +
+            '<div style="background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+            '<span style="font-size:11px;color:var(--text2);flex-shrink:0">🔗 专属推广链接：</span>' +
+            '<code style="font-size:11px;color:#60a5fa;word-break:break-all;flex:1;min-width:140px">'+escHtml(refLink)+'</code>' +
+            '<button class="btn btn-copy btn-sm" onclick="copyRefLink(\''+escHtml(refLink)+'\')" style="margin-top:0;flex-shrink:0">📋 复制链接</button>' +
+            '</div>' +
+            '</div>';
+    }).join('');
+}
+
+function copyRefLink(link) {
+    navigator.clipboard.writeText(link).then(function(){ showToast('✅ 专属链接已复制！发给分销人即可'); });
+}
+
+function refreshReferrerSelect() {
+    var select = document.getElementById('referrer');
+    var list = getReferrers();
+    select.innerHTML = '<option value="">无分销来源（直接客户）</option>' +
+        list.map(function(r){ return '<option value="'+r.id+'">'+escHtml(r.name)+' ('+r.commission+'%佣金)</option>'; }).join('');
+}
+
+// ============ History Management ============
+function getHistory() {
+    try { return JSON.parse(localStorage.getItem('career_coach_activation_history') || '[]'); } catch(e) { return []; }
+}
+function saveHistory(list) {
+    if (list.length > 200) list = list.slice(0, 200);
+    localStorage.setItem('career_coach_activation_history', JSON.stringify(list));
+}
+
+function saveRecord(record) {
+    var history = getHistory();
+    history.unshift(record);
+    saveHistory(history);
+}
+
+// ============ Encryption ============
+function encrypt(text, key) {
+    var bytes = '';
+    for (var i = 0; i < text.length; i++) {
+        var c = text.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+        bytes += String.fromCharCode((c >> 8) & 0xFF);
+        bytes += String.fromCharCode(c & 0xFF);
+    }
+    return btoa(bytes).replace(/[+/=]/g, function(c){ return ({'+':'.','/':'_','=':''})[c]; });
+}
+
+function simpleHash(str) {
+    var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (var i = 0; i < str.length; i++) {
+        var ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 3266489909);
+    return (h1 ^ h2) >>> 0;
+}
+
+// ============ Generate Code ============
+document.getElementById('plan').addEventListener('change', function() {
+    document.getElementById('customDaysBox').style.display = this.value === 'custom' ? 'block' : 'none';
+    var usesMap = { month: 0, quarter: 0, year: 0, trial: 5 };
+    if (usesMap[this.value] !== undefined) document.getElementById('uses').value = usesMap[this.value];
+});
+
+function generateCode() {
+    var name = document.getElementById('name').value.trim();
+    if (!name) { showToast('请填写客户称呼', 'err'); return; }
+    var plan = document.getElementById('plan').value;
+    var days = plan === 'custom' ? parseInt(document.getElementById('customDays').value) || 30 : PLAN_DAYS[plan];
+    if (plan === 'custom' && days < 1) { showToast('请填写有效天数', 'err'); return; }
+    var uses = parseInt(document.getElementById('uses').value);
+    var referrerId = document.getElementById('referrer').value;
+    var expiryDate = new Date(Date.now() + days * 86400000);
+    var expiryStr = expiryDate.toISOString().slice(0, 10);
+    var maxUsers = parseInt(document.getElementById('maxUsers').value) || 0;
+
+    var payload = expiryStr + '|' + uses + '|' + name + '|v2|' + maxUsers + '|' + (referrerId || 'DIRECT');
+    var encrypted = encrypt(payload, SECRET);
+    var hash = simpleHash(encrypted + SECRET).toString(16).slice(0, 4).toUpperCase();
+    var fullCode = encrypted + hash;
+
+    document.getElementById('codeDisplay').textContent = fullCode;
+    document.getElementById('codeInfo').textContent = '到期日：'+expiryStr+' · 可用次数：'+(uses===0?'不限':uses+'次')+' · 客户：'+name + (maxUsers > 0 ? ' · 限'+maxUsers+'人使用' : ' · 不限人数');
+    document.getElementById('output').classList.add('show');
+
+    var commission = 0;
+    var refName = '';
+    if (referrerId) {
+        var ref = getReferrers().find(function(r){ return r.id === referrerId; });
+        if (ref) {
+            var price = plan === 'custom' ? 0 : (PLAN_PRICES[plan] || 0);
+            commission = Math.round(price * ref.commission / 100);
+            refName = ref.name;
+        }
+    }
+
+    saveRecord({
+        name: name, code: fullCode, expiry: expiryStr, uses: uses, maxUsers: maxUsers,
+        plan: plan, planName: PLAN_NAMES[plan] || (days+'天'),
+        price: plan === 'custom' ? 0 : (PLAN_PRICES[plan] || 0),
+        referrerId: referrerId || '', referrerName: refName, commission: commission,
+        status: 'generated', time: new Date().toLocaleString(), isoTime: new Date().toISOString()
+    });
+
+    refreshReferrerSelect();
+    showToast('✅ 激活码已生成！' + (commission > 0 ? ' 佣金¥'+commission : ''));
+}
+
+function updateStatus(code, newStatus) {
+    var history = getHistory();
+    var record = history.find(function(h){ return h.code === code; });
+    if (record) {
+        record.status = newStatus;
+        saveHistory(history);
+        refreshDashboard();
+        showToast(newStatus === 'sent' ? '已标记为发送' : '已标记为激活');
+    }
+}
+
+// ============ Copy ============
+function copyCode() {
+    var code = document.getElementById('codeDisplay').textContent;
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(function(){ showToast('✅ 激活码已复制！'); });
+}
+
+function copySendMsg() {
+    var code = document.getElementById('codeDisplay').textContent;
+    var info = document.getElementById('codeInfo').textContent;
+    if (!code) return;
+    var msg = '您好，您的「安迪AI 职业陪跑」已开通！\n\n🔑 激活码：'+code+'\n📅 '+info+'\n\n使用步骤：\n1. 打开系统：'+WORKBENCH_URL+'\n2. 输入激活码，绑定微信号\n3. 填写个人档案后，选择功能模块\n4. 填写数据 → 生成AI指令 → 复制到DeepSeek/Kimi/豆包等AI工具即可获得专业分析\n\n💬 使用问题随时找我。';
+    navigator.clipboard.writeText(msg).then(function(){ showToast('✅ 话术已复制！'); });
+}
+
+// ============ Dashboard ============
+function refreshDashboard() {
+    var history = getHistory();
+    var referrers = getReferrers();
+
+    var totalSales = history.reduce(function(s,h){ return s + (h.price || 0); }, 0);
+    var totalCommission = history.filter(function(h){ return h.status === 'active'; }).reduce(function(s,h){ return s + (h.commission || 0); }, 0);
+    var totalCustomers = history.filter(function(h){ return h.referrerId && h.referrerId !== 'DIRECT'; }).length;
+
+    document.getElementById('statTotalSales').textContent = totalSales.toLocaleString();
+    document.getElementById('statTotalCommission').textContent = totalCommission.toLocaleString();
+    document.getElementById('statTotalRefs').textContent = referrers.length;
+    document.getElementById('statTotalCustomers').textContent = totalCustomers;
+
+    var ranking = referrers.map(function(r){
+        var refHistory = history.filter(function(h){ return h.referrerId === r.id; });
+        var active = refHistory.filter(function(h){ return h.status === 'active'; });
+        return { name: r.name, commission: r.commission, total: refHistory.length, active: active.length, totalCommission: active.reduce(function(s,h){ return s + (h.commission || 0); }, 0) };
+    }).sort(function(a,b){ return b.active - a.active; });
+
+    if (ranking.length === 0) {
+        document.getElementById('refRanking').innerHTML = '<div style="font-size:12px;color:var(--text2);padding:10px 0">暂无分销人</div>';
+    } else {
+        document.getElementById('refRanking').innerHTML = ranking.map(function(r, i){
+            return '<div class="ref-item">' +
+                '<div class="info"><span style="color:var(--primary);font-weight:700;margin-right:8px">#'+(i+1)+'</span> <span class="name">'+escHtml(r.name)+'</span>' +
+                '<div class="detail">佣金'+r.commission+'% · 共'+r.total+'个客户 · '+r.active+'个已激活</div></div>' +
+                '<div class="stats"><div class="num">¥'+r.totalCommission+'</div><div class="lbl">佣金待付</div></div></div>';
+        }).join('');
+    }
+
+    if (history.length === 0) {
+        document.getElementById('historyTable').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">暂无记录</td></tr>';
+    } else {
+        document.getElementById('historyTable').innerHTML = history.map(function(h){
+            var statusClass = h.status === 'generated' ? 'status-generated' : (h.status === 'sent' ? 'status-sent' : 'status-active');
+            var statusText = h.status === 'generated' ? '已生成' : (h.status === 'sent' ? '已发送' : '已激活');
+            var ops = '';
+            if (h.status === 'generated') ops = '<span class="clickable" onclick="updateStatus(\''+h.code+'\',\'sent\')">标记已发送</span>';
+            if (h.status === 'sent') ops = '<span class="clickable" onclick="updateStatus(\''+h.code+'\',\'active\')">标记已激活</span>';
+            if (h.status === 'active') ops = '<span style="color:rgba(255,255,255,.2)">-</span>';
+            return '<tr>' +
+                '<td>'+h.time.split(' ')[0]+'</td>' +
+                '<td>'+escHtml(h.name)+'</td>' +
+                '<td>'+h.planName+' ¥'+h.price+'</td>' +
+                '<td>'+(h.referrerName || '<span style="color:var(--text2)">直接</span>')+'</td>' +
+                '<td style="color:var(--primary)">'+(h.commission > 0 ? '¥'+h.commission : '-')+'</td>' +
+                '<td><span class="status-badge '+statusClass+'">'+statusText+'</span></td>' +
+                '<td>'+ops+'</td>' +
+                '</tr>';
+        }).join('');
+    }
+}
+
+function exportData() {
+    var history = getHistory();
+    if (history.length === 0) { showToast('暂无数据可导出', 'err'); return; }
+    var csv = '﻿时间,客户,套餐,价格,分销人,佣金,状态,到期日,可用次数\n';
+    csv += history.map(function(h){
+        return [h.time, h.name, h.planName, h.price, h.referrerName||'直接', h.commission||0, h.status==='generated'?'已生成':(h.status==='sent'?'已发送':'已激活'), h.expiry, h.uses].join(',');
+    }).join('\n');
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '职业陪跑_分销数据_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ 数据已导出');
+}
+
+// ============ Utility ============
+function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+}
+
+function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + (type || '');
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 2000);
+}
+
+// ============ Init ============
+function init() {
+    renderReferrers();
+    refreshReferrerSelect();
+    refreshDashboard();
+}
+init();
+</script>
+</body>
+</html>
