@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://api.github.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://api.github.com https://api.deepseek.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;">
 <title>安迪·职业陪跑</title>
 <link rel="stylesheet" href="css/styles.css?v=8">
 <style>
@@ -78,6 +78,7 @@
     <span class="header-user" id="userName"></span>
     <span id="wechatBound" class="header-usage" style="display:none"></span>
     <span class="header-usage">剩余次数：<b id="remainingUses">-</b> · 到期：<b id="expiryDate">-</b></span>
+    <button class="btn btn-sm btn-header" onclick="showDeepSeekSetup()">🤖 API</button>
     <button class="btn btn-sm btn-header" onclick="logout()">退出</button>
     <button class="btn btn-sm btn-header" onclick="showShareLink()">🔗 分享</button>
     <button class="btn btn-sm btn-header" onclick="showTokenSetup()">云端同步</button>

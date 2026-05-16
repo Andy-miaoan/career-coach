@@ -14,6 +14,165 @@ const GIST_FILENAME = 'career-coach-state.json';
 let gistETag = null;
 let currentSession = null;
 
+// ============================================================
+// DeepSeek API 集成 — 用户填表→直接出结果，不再"复制指令"
+// ============================================================
+var DEEPSEEK_API_KEY = localStorage.getItem('ds_api_key') || '';
+
+function setDeepSeekKey(key) {
+  key = (key || '').trim();
+  DEEPSEEK_API_KEY = key;
+  if (key) localStorage.setItem('ds_api_key', key);
+  else localStorage.removeItem('ds_api_key');
+}
+
+function hasDeepSeekKey() { return !!DEEPSEEK_API_KEY; }
+
+function showDeepSeekSetup() {
+  var currentKey = DEEPSEEK_API_KEY || '';
+  var masked = currentKey ? (currentKey.substring(0, 6) + '...' + currentKey.substring(currentKey.length - 4)) : '未设置';
+  var msg = 'DeepSeek API Key：' + masked + '\n\n输入新Key（免费注册 https://platform.deepseek.com 获取）：\n留空则保持当前设置。\n\n设置API Key后，所有模块分析结果由DeepSeek直接生成，无需手动复制粘贴到AI工具。';
+  var key = prompt(msg, '');
+  if (key === null) return; // 取消
+  if (key.trim()) {
+    setDeepSeekKey(key.trim());
+    showToast('✅ DeepSeek API Key 已保存');
+  } else if (!currentKey) {
+    showToast('未设置API Key，将使用"复制指令"模式（手动粘贴到AI工具）', true);
+  }
+}
+
+// 流式调用DeepSeek API
+async function callDeepSeekAPI(systemPrompt, userMessage, resultBoxId, copyBtnId, feedbackId, moduleName, modeName) {
+  var resultBox = document.getElementById(resultBoxId);
+  if (!resultBox) return;
+
+  if (!hasDeepSeekKey()) {
+    // 无API Key：显示指令 + 一键打开AI工具
+    var raw = systemPrompt + '\n\n' + userMessage;
+    var prompt = wrapPrompt(raw, moduleName || '', modeName || '');
+    _lastAIPrompt = prompt;
+
+    // 构建一键打开按钮
+    var toolButtons = '';
+    for (var i = 0; i < AI_TOOLS.length; i++) {
+      var t = AI_TOOLS[i];
+      toolButtons += '<button class="ai-tool-btn" onclick="openAITool(\'' + t.key + '\')" title="' + escapeHTML(t.desc) + '">' + t.icon + ' 打开' + t.name + '</button>';
+    }
+
+    resultBox.classList.remove('loading');
+    resultBox.innerHTML = ''
+      + '<div class="ai-tool-section">'
+      + '<div class="ai-tool-title">🚀 选择AI工具，一键打开使用</div>'
+      + '<p class="ai-tool-hint">点击按钮自动复制指令并打开对应AI工具，在新页面粘贴（Ctrl+V）即可</p>'
+      + '<div class="ai-tool-grid">' + toolButtons + '</div>'
+      + '<details class="ai-prompt-details" style="margin-top:14px">'
+      + '<summary style="cursor:pointer;color:#94a3b8;font-size:13px">📋 查看/手动复制完整指令</summary>'
+      + '<pre id="ai-prompt-cache" style="background:#1e293b;border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:16px;margin-top:8px;font-size:13px;color:#cbd5e1;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow-y:auto;line-height:1.7">' + escapeHTML(prompt) + '</pre>'
+      + '</details>'
+      + '</div>';
+
+    var copyBtn = document.getElementById(copyBtnId);
+    if (copyBtn) copyBtn.style.display = 'inline-block';
+    if (feedbackId) showFeedback(feedbackId);
+    return;
+  }
+
+  // API Key就绪：流式调用
+  resultBox.innerHTML = '<div style="padding:20px;color:#94a3b8"><span class="spinner"></span> DeepSeek 分析中...</div>';
+
+  try {
+    var profileCtx = getProfileContext();
+    var fullUserMessage = profileCtx ? (profileCtx + '\n\n---\n\n' + userMessage) : userMessage;
+    var messages = [];
+    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+    messages.push({ role: 'user', content: fullUserMessage });
+
+    var response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + DEEPSEEK_API_KEY
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: messages,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 4096
+      })
+    });
+
+    if (!response.ok) {
+      var errText = await response.text();
+      try { var errJson = JSON.parse(errText); errText = errJson.error && errJson.error.message || errText; } catch(e) {}
+      throw new Error('API错误 ' + response.status + ': ' + errText);
+    }
+
+    // 流式读取
+    resultBox.innerHTML = '<div style="padding:20px;line-height:1.9;font-size:14px;color:#e2e8f0" id="' + resultBoxId + '-stream"></div>';
+    var streamEl = document.getElementById(resultBoxId + '-stream');
+    var fullText = '';
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    while (true) {
+      var { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      var lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line.startsWith('data: ')) continue;
+        var data = line.substring(6);
+        if (data === '[DONE]') continue;
+        try {
+          var json = JSON.parse(data);
+          var delta = json.choices && json.choices[0] && json.choices[0].delta;
+          if (delta && delta.content) {
+            fullText += delta.content;
+            streamEl.innerHTML = renderMarkdown(fullText);
+            resultBox.scrollTop = resultBox.scrollHeight;
+          }
+        } catch(e) {}
+      }
+    }
+
+    resultBox.innerHTML = renderMarkdown(fullText);
+    var copyBtn = document.getElementById(copyBtnId);
+    if (copyBtn) {
+      copyBtn.style.display = 'inline-block';
+      copyBtn.textContent = '📋 复制结果';
+    }
+    if (feedbackId) showFeedback(feedbackId);
+
+  } catch(e) {
+    resultBox.innerHTML = '<div class="card state-error"><strong>调用失败</strong><br>' + escapeHTML(String(e.message)) + '<br><br><button class="btn btn-outline" onclick="showDeepSeekSetup()">⚙️ 检查API Key设置</button></div>';
+    console.error('[DeepSeek API]', e);
+  }
+}
+
+// 简单Markdown→HTML渲染
+function renderMarkdown(text) {
+  if (!text) return '';
+  var html = escapeHTML(text);
+  // 标题
+  html = html.replace(/^### (.+)$/gm, '<h4 style="margin:16px 0 8px;color:#f1f5f9">$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3 style="margin:20px 0 10px;color:#f8fafc;font-size:16px">$1</h3>');
+  // 粗体
+  html = html.replace(/\*\*(.+?)\*\*/g, '<b style="color:#f1f5f9">$1</b>');
+  // 列表项
+  html = html.replace(/^- (.+)$/gm, '<li style="margin:4px 0 4px 16px;color:#cbd5e1">$1</li>');
+  // 编号列表
+  html = html.replace(/^(\d+)\. (.+)$/gm, '<li style="margin:4px 0 4px 16px;color:#cbd5e1">$1. $2</li>');
+  // 换行
+  html = html.replace(/\n\n/g, '<br><br>');
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
 function decrypt(encoded, key) {
   try {
     encoded = encoded.replace(/[._]/g, c => ({'.':'+','_':'/'}[c]));
@@ -651,9 +810,36 @@ function copyResult(boxId) {
   var box = document.getElementById(boxId);
   var text = box.textContent;
   navigator.clipboard.writeText(text).then(function(){
-    showToast('✅ 已复制到剪贴板，可粘贴到 DeepSeek / Kimi / 豆包 等AI工具使用');
+    showToast('✅ 已复制到剪贴板，可粘贴到任意AI工具使用');
   }).catch(function(){
     showToast('复制失败，请手动选择复制', true);
+  });
+}
+
+// ============================================================
+// 一键打开AI工具（无API Key时的降级方案）
+// ============================================================
+var _lastAIPrompt = '';
+
+var AI_TOOLS = [
+  { key: 'deepseek', name: 'DeepSeek', url: 'https://chat.deepseek.com/', icon: '🤖', desc: '国产最强开源模型' },
+  { key: 'kimi', name: 'Kimi', url: 'https://kimi.moonshot.cn/', icon: '🌙', desc: '月之暗面·长文本' },
+  { key: 'glm', name: '智谱GLM', url: 'https://chatglm.cn/', icon: '🧠', desc: '清华智谱·千亿参数' },
+  { key: 'minimax', name: 'MiniMax', url: 'https://hailuoai.com/', icon: '🌊', desc: '海螺AI·多模态' },
+  { key: 'coze', name: 'Coze', url: 'https://www.coze.cn/', icon: '🤖', desc: '字节·AI Bot平台' },
+  { key: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/', icon: '⚡', desc: 'OpenAI出品' },
+  { key: 'claude', name: 'Claude', url: 'https://claude.ai/', icon: '🎯', desc: 'Anthropic出品' }
+];
+
+function openAITool(toolKey) {
+  var tool = AI_TOOLS.find(function(t) { return t.key === toolKey; });
+  if (!tool) return;
+  var text = _lastAIPrompt || document.getElementById('ai-prompt-cache')?.textContent || '';
+  var newWindow = window.open(tool.url, '_blank');
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('✅ 指令已复制，在 ' + tool.name + ' 中粘贴（Ctrl+V）即可');
+  }).catch(function() {
+    showToast('请手动复制指令，粘贴到 ' + tool.name + '（Ctrl+V）', true);
   });
 }
 
@@ -1175,18 +1361,18 @@ function initBizModel() {
     + '</div>'
     + '<button class="btn btn-primary btn-lg-full" onclick="generateBizModel()">💎 生成商业模式分析</button>'
     + '<div class="result-box" id="bm-result"></div>'
-    + '<button class="btn btn-outline" id="bm-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'bm-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="bm-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'bm-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-bizmodel" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'bizmodel\',\'个人商业模式\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'bizmodel\',\'个人商业模式\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>诚实填写你的商业模式画布 → 点击「生成AI指令」→ 复制 → 粘贴到 DeepSeek / Kimi / 豆包 等AI工具 → AI输出完整的商业模式诊断和升级方案。</div>';
+    + '<div class="instruction"><strong>怎么用：</strong>填写商业模式画布 → 点击「生成分析」→ 已配置API Key则DeepSeek直接输出报告，未配置则显示分析指令供手动复制。</div>';
 }
 
 function generateBizModel() {
   var resultBox = document.getElementById('bm-result');
-  showSpinner('bm-result');
+  document.getElementById('bm-copy-btn').style.display = 'none';
   useOneCredit(function() {
     var data = {
       product: document.getElementById('bm-product').value || '【未填】',
@@ -1199,7 +1385,9 @@ function generateBizModel() {
     AppState.userData.bizmodel = data;
     saveDrafts();
 
-    var raw = '你是一位资深商业顾问和个人商业模式设计师，曾帮助500+职场人士重新设计收入结构和职业资产配置。请根据以下信息，做一份个人商业模式深度分析。\n\n'
+    var systemPrompt = '你是一位资深商业顾问和个人商业模式设计师，曾帮助500+职场人士重新设计收入结构和职业资产配置。';
+
+    var userMessage = '请根据以下信息，做一份个人商业模式深度分析。\n\n'
       + '## 个人商业模式画布\n'
       + '- 核心产品：' + data.product + '\n'
       + '- 目标客户：' + data.clients + '\n'
@@ -1232,12 +1420,7 @@ function generateBizModel() {
       + '- 每条建议都要具体可执行，禁止"提升自己""拓展人脉"这种废话\n'
       + '- 如果信息不足，明确指出需要补充什么';
 
-    var prompt = wrapPrompt(raw, '个人商业模式', '');
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    var copyBtn = document.getElementById('bm-copy-btn');
-    if (copyBtn) copyBtn.style.display = 'inline-block';
-    showFeedback('bizmodel');
+    callDeepSeekAPI(systemPrompt, userMessage, 'bm-result', 'bm-copy-btn', 'bizmodel', '个人商业模式', '');
   }, function(err) {
     document.getElementById('bm-result').classList.remove('show');
     showToast(err, true);
@@ -1271,13 +1454,13 @@ function initForesight() {
     + '</div>'
     + '<button class="btn btn-primary btn-lg-full" onclick="generateForesight()">🔭 生成职业风控报告</button>'
     + '<div class="result-box" id="fs-result"></div>'
-    + '<button class="btn btn-outline" id="fs-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'fs-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="fs-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'fs-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-foresight" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'foresight\',\'行业情报与风控\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'foresight\',\'行业情报与风控\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>诚实评估你的行业趋势和风险担忧 → 点击「生成AI指令」→ 复制 → 粘贴到 DeepSeek / Kimi / 豆包 等AI工具 → AI输出完整的职业风控和第二曲线设计报告。</div>';
+    + '<div class="instruction"><strong>怎么用：</strong>评估行业趋势和风险担忧 → 点击「生成分析」→ 已配置API Key则DeepSeek直接输出报告，未配置则显示分析指令供手动复制。</div>';
 
   var riskOptions = [
     { id: 'age', name: '年龄歧视/35岁拐点' },
@@ -1301,7 +1484,7 @@ function initForesight() {
 
 function generateForesight() {
   var resultBox = document.getElementById('fs-result');
-  showSpinner('fs-result');
+  document.getElementById('fs-copy-btn').style.display = 'none';
   useOneCredit(function() {
     var risks = [];
     document.querySelectorAll('#fs-risks input[type="checkbox"]:checked').forEach(function(cb) {
@@ -1319,10 +1502,11 @@ function generateForesight() {
 
     var riskLabels = { age: '年龄歧视/35岁拐点', industry: '行业衰退', skill: '技能过时/AI替代', health: '健康/精力', platform: '平台依赖', single_income: '单一收入来源', competition: '年轻人竞争', ceiling: '职业天花板' };
     var riskDesc = risks.map(function(r){ return riskLabels[r] || r; }).join('、');
-
     var trendLabels = { exploding: '爆发式增长', growing: '稳健增长', flat: '增长停滞', declining: '明显下滑' };
 
-    var raw = '你是一位资深职业风控顾问，专注于帮助中高端职场人士识别职业风险、设计对冲策略和第二曲线。请根据以下信息，做一份职业风控与行业情报分析。\n\n'
+    var systemPrompt = '你是一位资深职业风控顾问，专注于帮助中高端职场人士识别职业风险、设计对冲策略和第二曲线。';
+
+    var userMessage = '请根据以下信息，做一份职业风控与行业情报分析。\n\n'
       + '## 用户职业信息\n'
       + '- 行业：' + data.industry + '\n'
       + '- 职能：' + data.role + '\n'
@@ -1355,12 +1539,7 @@ function generateForesight() {
       + '- 每条建议都要有具体的行动步骤\n'
       + '- 如信息不足，明确指出需要补充什么来判断';
 
-    var prompt = wrapPrompt(raw, '行业情报与风控', '');
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    var copyBtn = document.getElementById('fs-copy-btn');
-    if (copyBtn) copyBtn.style.display = 'inline-block';
-    showFeedback('foresight');
+    callDeepSeekAPI(systemPrompt, userMessage, 'fs-result', 'fs-copy-btn', 'foresight', '行业情报与风控', '');
   }, function(err) {
     document.getElementById('fs-result').classList.remove('show');
     showToast(err, true);
@@ -1437,15 +1616,15 @@ function initPositioning() {
     + '<textarea id="pos-question" rows="2" placeholder="如：我不知道自己适合做什么 / 我想转行但不知道怎么转 / 我担心自己的竞争力在下降...">' + escapeHTML(d.question || '') + '</textarea>'
     + '</div>'
 
-    + '<button class="btn btn-primary btn-lg-full" onclick="processPositioning()">🧬 生成职业定位AI指令</button>'
+    + '<button class="btn btn-primary btn-lg-full" onclick="processPositioning()">🧬 生成职业定位分析</button>'
     + '<div class="result-box" id="positioning-result"></div>'
-    + '<button class="btn btn-outline" id="positioning-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'positioning-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="positioning-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'positioning-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-positioning" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'positioning\',\'职业定位\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'positioning\',\'职业定位\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>认真填写以上信息（越诚实分析越准）→ 点击「生成AI指令」→ 复制 → 粘贴到 DeepSeek / Kimi / 豆包 等AI工具 → AI输出完整的职业定位分析报告，包含：四象限画像、竞争优势、职业锚点、发展建议。</div>';
+    + '<div class="instruction"><strong>怎么用：</strong>认真填写以上信息（越诚实分析越准）→ 点击「生成分析」→ 已配置API Key则DeepSeek直接输出报告，未配置则显示分析指令供手动复制。</div>';
 }
 
 function renderQuadrantSliders(prefix, items, data) {
@@ -1471,7 +1650,6 @@ function switchPosTab(tab) {
 
 function processPositioning() {
   var resultBox = document.getElementById('positioning-result');
-  showSpinner('positioning-result');
   document.getElementById('positioning-copy-btn').style.display = 'none';
 
   useOneCredit(function() {
@@ -1482,7 +1660,6 @@ function processPositioning() {
     var status = document.getElementById('pos-status').value || '【未填】';
     var goals = document.getElementById('pos-goals').value || '【未填】';
     var question = document.getElementById('pos-question').value || '【未填】';
-    // 瓶颈诊断数据
     var bnTypes = [];
     if (document.getElementById('pos-bn-ceiling')?.checked) bnTypes.push('天花板瓶颈');
     if (document.getElementById('pos-bn-ability')?.checked) bnTypes.push('能力瓶颈');
@@ -1497,7 +1674,6 @@ function processPositioning() {
     var city = document.getElementById('pos-city').value || '【未填】';
     var redlines = document.getElementById('pos-redlines').value || '无';
 
-    // 收集能力、兴趣、价值观自评
     var abilities = ['专业能力','沟通表达','向上管理','向下管理','跨部门协作','数据分析','项目管理','学习能力'];
     var interests = ['创造性工作','策略规划','人际沟通','数据分析','独立执行','团队领导','专业深耕','商业变现'];
     var values = ['薪资待遇','工作生活平衡','成长空间','稳定性','自主权','社会影响力','团队氛围','行业前景'];
@@ -1508,7 +1684,9 @@ function processPositioning() {
       }).join('\n');
     }
 
-    var raw = '你是一位资深职业规划师，拥有15年职业咨询经验，帮助过2000+职场人完成职业定位和转型。请根据以下信息，为我做一次系统的职业定位分析。\n\n'
+    var systemPrompt = '你是一位资深职业规划师，拥有15年职业咨询经验，帮助过2000+职场人完成职业定位和转型。';
+
+    var userMessage = '请根据以下信息，为我做一次系统的职业定位分析。\n\n'
       + '## 我的基本情况\n'
       + '- 当前行业：' + industry + '\n'
       + '- 当前岗位/职级：' + position + '\n'
@@ -1559,11 +1737,7 @@ function processPositioning() {
       + '- 每条建议都要具体可执行，禁止"提升自己""加强学习"这种废话\n'
       + '- 如果我的信息不够做完整判断，明确指出需要补充什么';
 
-    var prompt = wrapPrompt(raw, '职业定位', '');
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    document.getElementById('positioning-copy-btn').style.display = 'inline-block';
-    showFeedback('positioning');
+    callDeepSeekAPI(systemPrompt, userMessage, 'positioning-result', 'positioning-copy-btn', 'positioning', '职业定位', '');
     savePositioningData();
   }, function(err) {
     document.getElementById('positioning-result').classList.remove('show');
@@ -1654,15 +1828,15 @@ function initRoadmap() {
     + '<select id="rm-salary-cut"><option value="">--请选择--</option><option value="不接受降薪"' + (d.salaryCut === '不接受降薪' ? ' selected' : '') + '>不接受降薪</option><option value="可降10%以内"' + (d.salaryCut === '可降10%以内' ? ' selected' : '') + '>可降10%以内</option><option value="可降10-20%"' + (d.salaryCut === '可降10-20%' ? ' selected' : '') + '>可降10-20%</option><option value="可降20-30%"' + (d.salaryCut === '可降20-30%' ? ' selected' : '') + '>可降20-30%</option><option value="短期降薪30%以上也可接受"' + (d.salaryCut === '短期降薪30%以上也可接受' ? ' selected' : '') + '>短期降薪30%以上也可接受</option></select>'
     + '</div>'
 
-    + '<button class="btn btn-primary btn-lg-full" onclick="processRoadmap()">🗺️ 生成职业路线AI指令</button>'
+    + '<button class="btn btn-primary btn-lg-full" onclick="processRoadmap()">🗺️ 生成职业路线分析</button>'
     + '<div class="result-box" id="roadmap-result"></div>'
-    + '<button class="btn btn-outline" id="roadmap-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'roadmap-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="roadmap-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'roadmap-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-roadmap" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'roadmap\',\'职业路线\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'roadmap\',\'职业路线\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>诚实填写当前状态和目标（信息越真实AI建议越靠谱）→ 点击生成指令 → 复制 → 粘贴到AI工具 → AI输出3条路径对比分析+风险评估+90天冲刺计划。</div>';
+    + '<div class="instruction"><strong>怎么用：</strong>填写当前状态和目标（信息越真实AI建议越靠谱）→ 点击生成分析 → 已配置API Key则DeepSeek直接输出报告，未配置则显示分析指令供手动复制。</div>';
 }
 
 function buildIndustryOptions(selected) {
@@ -1685,7 +1859,6 @@ function buildPositionOptions(selected) {
 
 function processRoadmap() {
   var resultBox = document.getElementById('roadmap-result');
-  showSpinner('roadmap-result');
   document.getElementById('roadmap-copy-btn').style.display = 'none';
 
   useOneCredit(function() {
@@ -1708,7 +1881,9 @@ function processRoadmap() {
     var learnNew = document.getElementById('rm-learn-new')?.value || '';
     var salaryCut = document.getElementById('rm-salary-cut')?.value || '';
 
-    var raw = '你是一位资深职业战略顾问，拥有15年职业规划经验，帮助过2000+人完成职业转型和晋升。请帮我设计职业路线规划。\n\n'
+    var systemPrompt = '你是一位资深职业战略顾问，拥有15年职业规划经验，帮助过2000+人完成职业转型和晋升。';
+
+    var userMessage = '请帮我设计职业路线规划。\n\n'
       + '## 当前状态\n'
       + '- 行业：' + curIndustry + '\n'
       + '- 岗位方向：' + curPosition + '\n'
@@ -1772,11 +1947,7 @@ function processRoadmap() {
       + '- 90天计划要可执行，每个动作要"下周就可以开始做"\n'
       + '- 如果我的信息不足以支撑完整判断，明确指出缺少什么';
 
-    var prompt = wrapPrompt(raw, '职业路线', '');
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    document.getElementById('roadmap-copy-btn').style.display = 'inline-block';
-    showFeedback('roadmap');
+    callDeepSeekAPI(systemPrompt, userMessage, 'roadmap-result', 'roadmap-copy-btn', 'roadmap', '职业路线', '');
     saveRoadmapData();
   }, function(err) {
     document.getElementById('roadmap-result').classList.remove('show');
@@ -1809,13 +1980,13 @@ function initToolkit() {
     + '</div>'
     + '<div id="toolkit-tab-content"></div>'
     + '<div class="result-box" id="toolkit-result"></div>'
-    + '<button class="btn btn-outline" id="toolkit-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'toolkit-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="toolkit-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'toolkit-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-toolkit" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'toolkit\',\'职业能力\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'toolkit\',\'职业能力\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>选择场景 → 填写你的具体情况 → 生成AI指令 → 粘贴到AI工具 → 获得专业输出。</div>'
+    + '<div class="instruction"><strong>怎么用：</strong>选择场景 → 填写具体情况 → 生成分析 → 已配置API Key则DeepSeek直接输出，未配置则显示指令供手动复制。</div>'
     + '<div class="connector-banner"><strong>⚡ 需要具体执行？</strong> 能力建模是战略层——看清差距。具体简历优化、面试话术、谈薪策略的实战执行，请使用 <a href="https://andy-miaoan.github.io/AI-Interview-Tools/面试私教/工具_面试私教工作台.html" target="_blank" style="color:#22c55e;text-decoration:underline">面试私教工作台 →</a></div>';
   switchToolkitTab('resume');
 }
@@ -1839,7 +2010,7 @@ function switchToolkitTab(tab) {
       + '<textarea id="tk-resume-text" rows="10" placeholder="在此粘贴你的简历全文...">' + escapeHTML(d.resumeText || '') + '</textarea>'
       + '<label>你最想让简历突出的亮点（可选）</label>'
       + '<input type="text" id="tk-resume-highlight" placeholder="如：操盘过千万级项目 / 从0到1搭建团队" value="' + escapeHTML(d.resumeHighlight || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">📄 生成简历优化指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">📄 生成简历优化分析</button>'
       + '</div>';
   } else if (tab === 'interview') {
     content.innerHTML = '<div class="card">'
@@ -1850,7 +2021,7 @@ function switchToolkitTab(tab) {
       + '<textarea id="tk-int-worry" rows="2" placeholder="如：你为什么离开上一家公司？你的缺点是什么？你期待的薪资是多少？...">' + escapeHTML(d.intWorry || '') + '</textarea>'
       + '<label>你最想展示的优势</label>'
       + '<textarea id="tk-int-strength" rows="2" placeholder="如：我带过20人团队、操盘过年GMV 5000万的业务...">' + escapeHTML(d.intStrength || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">💬 生成面试话术指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">💬 生成面试话术分析</button>'
       + '</div>';
   } else if (tab === 'salary') {
     content.innerHTML = '<div class="card">'
@@ -1864,7 +2035,7 @@ function switchToolkitTab(tab) {
       + '<label>你能接受的底线（万）</label><input type="text" id="tk-sal-floor" placeholder="如：50" value="' + escapeHTML(d.salFloor || '') + '">'
       + '<label>对方可能的顾虑（可选）</label>'
       + '<input type="text" id="tk-sal-concern" placeholder="如：涨幅太高HR可能卡 / 我的经验偏少..." value="' + escapeHTML(d.salConcern || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">💰 生成谈薪策略指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">💰 生成谈薪策略分析</button>'
       + '</div>';
   } else if (tab === 'decision') {
     content.innerHTML = '<div class="card">'
@@ -1877,7 +2048,7 @@ function switchToolkitTab(tab) {
       + '<textarea id="tk-dec-options" rows="4" placeholder="方案A：留在现公司，争取晋升\n方案B：接创业公司offer\n方案C：再找找其他机会...">' + escapeHTML(d.decOptions || '') + '</textarea>'
       + '<label>你最担心的风险</label>'
       + '<input type="text" id="tk-dec-risk" placeholder="如：创业公司不稳定，万一几个月后倒闭..." value="' + escapeHTML(d.decRisk || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">🧮 生成决策推演指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processToolkit()">🧮 生成决策推演分析</button>'
       + '</div>';
   }
   restoreDrafts();
@@ -1885,12 +2056,12 @@ function switchToolkitTab(tab) {
 
 function processToolkit() {
   var resultBox = document.getElementById('toolkit-result');
-  showSpinner('toolkit-result');
   document.getElementById('toolkit-copy-btn').style.display = 'none';
 
   useOneCredit(function() {
     var tab = currentToolkitTab;
-    var raw = '';
+    var systemPrompt = '';
+    var userMessage = '';
     var modeName = '';
 
     if (tab === 'resume') {
@@ -1899,7 +2070,8 @@ function processToolkit() {
       var industry = document.getElementById('tk-resume-industry').value || '【请填写】';
       var text = document.getElementById('tk-resume-text').value || '【请粘贴简历】';
       var highlight = document.getElementById('tk-resume-highlight').value || '无';
-      raw = '你是一位资深招聘总监兼简历专家，拥有15年招聘经验，审阅过10万+份简历。请帮我优化简历。\n\n'
+      systemPrompt = '你是一位资深招聘总监兼简历专家，拥有15年招聘经验，审阅过10万+份简历。';
+      userMessage = '请帮我优化简历。\n\n'
         + '## 背景\n- 目标岗位：' + position + '\n- 目标行业：' + industry + '\n- 我最想突出的亮点：' + highlight + '\n\n'
         + '## 我的简历\n' + text + '\n\n'
         + '## 请从以下维度优化\n\n'
@@ -1916,7 +2088,8 @@ function processToolkit() {
       var company = document.getElementById('tk-int-company').value || '【请填写】';
       var worry = document.getElementById('tk-int-worry').value || '无';
       var strength = document.getElementById('tk-int-strength').value || '【请填写】';
-      raw = '你是一位资深面试教练，帮助过2000+人拿到心仪offer。请帮我准备面试话术。\n\n'
+      systemPrompt = '你是一位资深面试教练，帮助过2000+人拿到心仪offer。';
+      userMessage = '请帮我准备面试话术。\n\n'
         + '## 背景\n- 应聘岗位：' + position2 + '\n- 目标公司类型：' + company + '\n- 我最怕被问的：' + worry + '\n- 我最想展示的：' + strength + '\n\n'
         + '## 请帮我准备以下内容的面试话术\n\n'
         + '### 一、自我介绍（1分钟版和3分钟版）\n- 不要复述简历，要说"我能为你带来什么"\n\n'
@@ -1933,7 +2106,8 @@ function processToolkit() {
       var salTarget = document.getElementById('tk-sal-target').value || '【请填写】';
       var salFloor = document.getElementById('tk-sal-floor').value || '【请填写】';
       var salConcern = document.getElementById('tk-sal-concern').value || '无';
-      raw = '你是一位资深薪酬谈判顾问，帮助过1000+人拿到理想薪资。请帮我制定谈薪策略。\n\n'
+      systemPrompt = '你是一位资深薪酬谈判顾问，帮助过1000+人拿到理想薪资。';
+      userMessage = '请帮我制定谈薪策略。\n\n'
         + '## 背景\n- 岗位：' + salPosition + '\n- 公司类型：' + salCompany + '\n- 当前年薪：' + salCurrent + '万\n- 期望年薪：' + salTarget + '万\n- 底线：' + salFloor + '万\n- 可能的顾虑：' + salConcern + '\n\n'
         + '## 请帮我制定谈薪策略\n\n'
         + '### 一、薪酬定位\n- 目标岗位在' + salCompany + '的市场薪酬范围（25分位/50分位/75分位）\n- 我的期望' + salTarget + '万在什么水平？合理吗？\n\n'
@@ -1948,7 +2122,8 @@ function processToolkit() {
       var decContext = document.getElementById('tk-dec-context').value || '【请填写】';
       var decOptions = document.getElementById('tk-dec-options').value || '【请填写】';
       var decRisk = document.getElementById('tk-dec-risk').value || '【请填写】';
-      raw = '你是一位资深职业决策顾问，帮助过3000+人做关键职业决策。请帮我推演这个决定。你不替我做决定，但帮我把每个选项想清楚。\n\n'
+      systemPrompt = '你是一位资深职业决策顾问，帮助过3000+人做关键职业决策。你不替我做决定，但帮我把每个选项想清楚。';
+      userMessage = '请帮我推演这个决定。\n\n'
         + '## 决策背景\n- 核心问题：' + decQuestion + '\n- 当前情况：' + decContext + '\n- 可选方案：\n' + decOptions + '\n- 最担心的风险：' + decRisk + '\n\n'
         + '## 请按以下框架推演\n\n'
         + '### 一、决策的本质\n- 这个决策真正在决定什么？\n- 不做决策的代价是什么？\n\n'
@@ -1959,11 +2134,7 @@ function processToolkit() {
         + '## 规则：不替我做决定，但帮我看清每个选择的真实代价。如果我的信息不够，明确指出。';
     }
 
-    var prompt = wrapPrompt(raw, '职业能力', modeName);
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    document.getElementById('toolkit-copy-btn').style.display = 'inline-block';
-    showFeedback('toolkit');
+    callDeepSeekAPI(systemPrompt, userMessage, 'toolkit-result', 'toolkit-copy-btn', 'toolkit', '职业能力', modeName);
     saveToolkitData();
   }, function(err) {
     document.getElementById('toolkit-result').classList.remove('show');
@@ -2003,13 +2174,13 @@ function initCombat() {
     + '</div>'
     + '<div id="combat-tab-content"></div>'
     + '<div class="result-box" id="combat-result"></div>'
-    + '<button class="btn btn-outline" id="combat-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'combat-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="combat-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'combat-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-combat" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'combat\',\'职业实战\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'combat\',\'职业实战\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>选择实战场景 → 填写你的具体情况 → 生成AI指令 → 粘贴到AI工具 → AI作为你的职业教练进行深度分析和训练。</div>'
+    + '<div class="instruction"><strong>怎么用：</strong>选择实战场景 → 填写具体情况 → 生成分析 → 已配置API Key则DeepSeek直接输出，未配置则显示指令供手动复制。</div>'
     + '<div class="connector-banner"><strong>⚡ 需要实战执行？</strong> 实战导航是战略层——告诉你往哪打。具体的简历优化、模拟面试、谈薪话术，请使用 <a href="https://andy-miaoan.github.io/AI-Interview-Tools/面试私教/工具_面试私教工作台.html" target="_blank" style="color:#22c55e;text-decoration:underline">面试私教工作台 →</a></div>';
   switchCombatTab('resume');
 }
@@ -2030,7 +2201,7 @@ function switchCombatTab(tab) {
       + '<p class="section-note">粘贴简历全文，AI从7个维度评分并给出逐条改进建议。</p>'
       + '<label>目标岗位</label><input type="text" id="cb-resume-position" placeholder="如：运营总监" value="' + escapeHTML(d.cbResumePosition || '') + '">'
       + '<textarea id="cb-resume-text" rows="12" placeholder="在此粘贴你的简历全文...">' + escapeHTML(d.cbResumeText || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📝 生成简历分析指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📝 生成简历分析</button>'
       + '</div>';
   } else if (tab === 'interview') {
     content.innerHTML = '<div class="card">'
@@ -2041,7 +2212,7 @@ function switchCombatTab(tab) {
       + '<select id="cb-int-focus"><option value="行为面试"' + (d.cbIntFocus === '行为面试' ? ' selected' : '') + '>行为面试（STAR法则）</option><option value="案例分析"' + (d.cbIntFocus === '案例分析' ? ' selected' : '') + '>案例分析/业务题</option><option value="压力面试"' + (d.cbIntFocus === '压力面试' ? ' selected' : '') + '>压力面试/追问</option><option value="高管面"' + (d.cbIntFocus === '高管面' ? ' selected' : '') + '>高管终面</option><option value="全面准备"' + (d.cbIntFocus === '全面准备' ? ' selected' : '') + '>全面准备</option></select>'
       + '<label>你的优势描述</label>'
       + '<textarea id="cb-int-strength" rows="2" placeholder="如：5年运营管理经验，从0到1搭建过团队...">' + escapeHTML(d.cbIntStrength || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">🎙️ 生成模拟面试指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">🎙️ 生成模拟面试分析</button>'
       + '</div>';
   } else if (tab === 'skills') {
     content.innerHTML = '<div class="card">'
@@ -2052,7 +2223,7 @@ function switchCombatTab(tab) {
       + '<textarea id="cb-skills-current" rows="2" placeholder="如：向上管理总是把握不好度，要么太被动要么太aggressive...">' + escapeHTML(d.cbSkillsCurrent || '') + '</textarea>'
       + '<label>具体工作场景（AI会给针对性训练方案）</label>'
       + '<textarea id="cb-skills-scene" rows="2" placeholder="如：下周要跟老板做季度汇报，我想趁这个机会展示我的成果但不知道怎么讲...">' + escapeHTML(d.cbSkillsScene || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">🏋️ 生成技能训练指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">🏋️ 生成技能训练分析</button>'
       + '</div>';
   } else if (tab === 'challenge') {
     content.innerHTML = '<div class="card">'
@@ -2063,7 +2234,7 @@ function switchCombatTab(tab) {
       + '<textarea id="cb-challenge-desc" rows="4" placeholder="如：团队里有个老员工不配合我的安排，当着全组的面质疑我的方案，其他同事也开始站队...">' + escapeHTML(d.cbChallengeDesc || '') + '</textarea>'
       + '<label>你已经尝试过什么方法？（可选）</label>'
       + '<textarea id="cb-challenge-tried" rows="2" placeholder="如：私下找他聊过一次，他说会配合但后面还是老样子...">' + escapeHTML(d.cbChallengeTried || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📋 生成实战分析指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📋 生成实战分析</button>'
       + '</div>';
   } else if (tab === 'network') {
     content.innerHTML = '<div class="card">'
@@ -2076,7 +2247,7 @@ function switchCombatTab(tab) {
       + '<select id="cb-network-goal"><option value="找到新机会"' + (d.cbNetworkGoal === '找到新机会' ? ' selected' : '') + '>找到新工作/新机会</option><option value="行业影响力"' + (d.cbNetworkGoal === '行业影响力' ? ' selected' : '') + '>建立行业影响力</option><option value="学习成长"' + (d.cbNetworkGoal === '学习成长' ? ' selected' : '') + '>链接导师和学习资源</option><option value="商业合作"' + (d.cbNetworkGoal === '商业合作' ? ' selected' : '') + '>拓展商业合作机会</option><option value="全面构建"' + (d.cbNetworkGoal === '全面构建' ? ' selected' : '') + '>全面构建职业网络</option></select>'
       + '<label>你最大的社交障碍或顾虑</label>'
       + '<input type="text" id="cb-network-blocker" placeholder="如：不知道聊什么 / 怕被拒绝 / 觉得社交很累 / 没什么机会接触大咖..." value="' + escapeHTML(d.cbNetworkBlocker || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">🤝 生成人脉建设指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">🤝 生成人脉建设分析</button>'
       + '</div>';
   } else if (tab === 'brand') {
     content.innerHTML = '<div class="card">'
@@ -2091,7 +2262,7 @@ function switchCombatTab(tab) {
       + '<select id="cb-brand-goal"><option value="行业知名度"' + (d.cbBrandGoal === '行业知名度' ? ' selected' : '') + '>提升行业知名度和影响力</option><option value="求职竞争力"' + (d.cbBrandGoal === '求职竞争力' ? ' selected' : '') + '>增强求职竞争力</option><option value="变现"' + (d.cbBrandGoal === '变现' ? ' selected' : '') + '>个人品牌变现（培训/咨询/内容）</option><option value="从零开始"' + (d.cbBrandGoal === '从零开始' ? ' selected' : '') + '>从零开始建立个人品牌</option></select>'
       + '<label>你的内容输出能力（你擅长或愿意尝试的输出方式）</label>'
       + '<input type="text" id="cb-brand-content" placeholder="如：写文章、做PPT分享、拍短视频、直播、线下分享、都不擅长但愿意学..." value="' + escapeHTML(d.cbBrandContent || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📣 生成个人品牌指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processCombat()">📣 生成个人品牌分析</button>'
       + '</div>';
   }
   restoreDrafts();
@@ -2099,19 +2270,20 @@ function switchCombatTab(tab) {
 
 function processCombat() {
   var resultBox = document.getElementById('combat-result');
-  showSpinner('combat-result');
   document.getElementById('combat-copy-btn').style.display = 'none';
 
   useOneCredit(function() {
     var tab = currentCombatTab;
-    var raw = '';
+    var systemPrompt = '';
+    var userMessage = '';
     var modeName = '';
 
     if (tab === 'resume') {
       modeName = '简历分析';
       var pos = document.getElementById('cb-resume-position').value || '【请填写】';
       var text = document.getElementById('cb-resume-text').value || '【请粘贴简历】';
-      raw = '你是一位资深招聘总监兼简历专家，审阅过10万+份简历。请深度分析我的简历。\n\n'
+      systemPrompt = '你是一位资深招聘总监兼简历专家，审阅过10万+份简历。';
+      userMessage = '请深度分析我的简历。\n\n'
         + '## 目标岗位\n' + pos + '\n\n## 简历全文\n' + text + '\n\n'
         + '## 分析框架\n\n### 一、7维诊断（每项1-5分+具体理由）\n'
         + '结构清晰度 | 内容量化度 | 成就导向性 | 定位精准度 | 语言表达力 | 专业规范性 | 差异化竞争力\n\n'
@@ -2126,7 +2298,8 @@ function processCombat() {
       var intCompany = document.getElementById('cb-int-company').value || '【请填写】';
       var intFocus = document.getElementById('cb-int-focus').value || '全面准备';
       var intStrength = document.getElementById('cb-int-strength').value || '【请填写】';
-      raw = '你是一位资深面试教练兼行业面试官，面试过2000+位候选人。请针对以下情况帮我做模拟面试训练。\n\n'
+      systemPrompt = '你是一位资深面试教练兼行业面试官，面试过2000+位候选人。';
+      userMessage = '请针对以下情况帮我做模拟面试训练。\n\n'
         + '## 背景\n- 目标岗位：' + intPos + '\n- 公司类型：' + intCompany + '\n- 重点准备：' + intFocus + '\n- 我的优势：' + intStrength + '\n\n'
         + '## 请输出\n\n### 一、针对' + intFocus + '的15道面试题\n- 每道题包含：考察点、好回答框架、具体话术参考、红旗信号、递进追问\n\n'
         + '### 二、模拟面试脚本\n- 给我一段完整的面试对话示例（面试官问 → 我怎么答 → 面试官追问 → 我怎么回）\n\n'
@@ -2139,7 +2312,8 @@ function processCombat() {
       var area = document.getElementById('cb-skills-area').value || '【请选择】';
       var current = document.getElementById('cb-skills-current').value || '【请填写】';
       var scene = document.getElementById('cb-skills-scene').value || '无';
-      raw = '你是一位资深职场技能教练，帮助过3000+人提升核心职业能力。请帮我设计技能训练方案。\n\n'
+      systemPrompt = '你是一位资深职场技能教练，帮助过3000+人提升核心职业能力。';
+      userMessage = '请帮我设计技能训练方案。\n\n'
         + '## 背景\n- 想提升的技能：' + area + '\n- 当前水平：' + current + '\n- 具体场景：' + scene + '\n\n'
         + '## 请输出\n\n### 一、能力诊断\n- ' + area + '的能力模型拆解（这个技能由哪些子能力构成？）\n- 根据我的描述，我的水平大概在什么阶段？\n- 核心短板判断\n\n'
         + '### 二、2周刻意练习计划\n- 每天具体做什么（要可以明天就开始做）\n- 每阶段要练到什么标准\n- 怎么判断自己进步了\n\n'
@@ -2152,7 +2326,8 @@ function processCombat() {
       var bg = document.getElementById('cb-challenge-bg').value || '【请填写】';
       var desc = document.getElementById('cb-challenge-desc').value || '【请填写】';
       var tried = document.getElementById('cb-challenge-tried').value || '尚未尝试';
-      raw = '你是一位资深职场导师兼管理顾问，帮助过2000+人解决职场难题。请帮我分析这个工作挑战。\n\n'
+      systemPrompt = '你是一位资深职场导师兼管理顾问，帮助过2000+人解决职场难题。';
+      userMessage = '请帮我分析这个工作挑战。\n\n'
         + '## 背景\n- 我的角色：' + bg + '\n- 具体挑战：' + desc + '\n- 已经尝试过：' + tried + '\n\n'
         + '## 请输出\n\n### 一、问题诊断\n- 这个问题的本质是什么？（往往不是表面上那个问题）\n- 根因分析：是能力问题、关系问题、结构问题还是期望问题？\n\n'
         + '### 二、3种应对方案\n- 方案A（温和型）：怎么做？什么结果？风险？\n- 方案B（进取型）：怎么做？什么结果？风险？\n- 方案C（借力型）：怎么做？什么结果？风险？\n\n'
@@ -2166,7 +2341,8 @@ function processCombat() {
       var nwCurrent = document.getElementById('cb-network-current').value || '【请填写】';
       var nwGoal = document.getElementById('cb-network-goal').value || '【请选择】';
       var nwBlocker = document.getElementById('cb-network-blocker').value || '无';
-      raw = '你是一位资深职业发展顾问兼人脉策略专家，帮助过1000+位职场人建立高质量职业网络。请帮我制定人脉建设策略。\n\n'
+      systemPrompt = '你是一位资深职业发展顾问兼人脉策略专家，帮助过1000+位职场人建立高质量职业网络。';
+      userMessage = '请帮我制定人脉建设策略。\n\n'
         + '## 背景\n- 我的行业与岗位：' + nwPos + '\n- 当前人脉状况：' + nwCurrent + '\n- 建设目标：' + nwGoal + '\n- 最大障碍：' + nwBlocker + '\n\n'
         + '## 请按以下框架输出\n\n'
         + '### 一、人脉现状诊断\n- 根据我的描述，我的人脉网络处于什么阶段？（孤立期/建立期/扩展期/影响力期）\n- 我的核心短板是什么？\n\n'
@@ -2183,7 +2359,8 @@ function processCombat() {
       var brPlatforms = document.getElementById('cb-brand-platforms').value || '【请填写】';
       var brGoal = document.getElementById('cb-brand-goal').value || '【请选择】';
       var brContent = document.getElementById('cb-brand-content').value || '【请填写】';
-      raw = '你是一位资深个人品牌顾问，帮助过500+位职场人和创业者建立个人品牌。请帮我制定个人品牌建设方案。\n\n'
+      systemPrompt = '你是一位资深个人品牌顾问，帮助过500+位职场人和创业者建立个人品牌。';
+      userMessage = '请帮我制定个人品牌建设方案。\n\n'
         + '## 背景\n- 我的岗位和行业：' + brPos + '\n- 我想建立的标签：' + brTags + '\n- 现有平台基础：' + brPlatforms + '\n- 建设目标：' + brGoal + '\n- 内容输出能力：' + brContent + '\n\n'
         + '## 请按以下框架输出\n\n'
         + '### 一、品牌定位\n- 基于我的岗位和标签，帮我提炼一个差异化的个人品牌定位（一句话）\n- 在"' + brPos + '"这个领域，什么定位是稀缺且有价值的？\n\n'
@@ -2195,11 +2372,7 @@ function processCombat() {
 
     }
 
-    var prompt = wrapPrompt(raw, '职业实战', modeName);
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    document.getElementById('combat-copy-btn').style.display = 'inline-block';
-    showFeedback('combat');
+    callDeepSeekAPI(systemPrompt, userMessage, 'combat-result', 'combat-copy-btn', 'combat', '职业实战', modeName);
     saveCombatData();
   }, function(err) {
     document.getElementById('combat-result').classList.remove('show');
@@ -2237,13 +2410,13 @@ function initReview() {
     + '</div>'
     + '<div id="review-tab-content"></div>'
     + '<div class="result-box" id="review-result"></div>'
-    + '<button class="btn btn-outline" id="review-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'review-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="review-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'review-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-review" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'review\',\'职业复盘\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'review\',\'职业复盘\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>填写你的复盘数据 → 生成AI指令 → 粘贴到AI工具 → AI帮你做深度复盘分析，揭示你忽略的模式和盲点。</div>';
+    + '<div class="instruction"><strong>怎么用：</strong>填写复盘数据 → 生成分析 → 已配置API Key则DeepSeek直接输出报告，未配置则显示指令供手动复制。</div>';
   switchReviewMode('weekly');
 }
 
@@ -2272,7 +2445,7 @@ function switchReviewMode(mode) {
       + '<textarea id="rv-weekly-time" rows="2" placeholder="如：花了太多时间在救火上，真正重要的事只推进了30%...">' + escapeHTML(d.weeklyTime || '') + '</textarea>'
       + '<label>下周最重要的1件事（只有一件！）</label>'
       + '<input type="text" id="rv-weekly-next" placeholder="如：完成竞品分析报告的第一版" value="' + escapeHTML(d.weeklyNext || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processReview()">📋 生成复盘分析指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processReview()">📋 生成复盘分析</button>'
       + '</div>';
   } else if (mode === 'monthly') {
     content.innerHTML = '<div class="card">'
@@ -2289,7 +2462,7 @@ function switchReviewMode(mode) {
       + '<input type="text" id="rv-monthly-satisfaction" placeholder="如：7分——工作内容还行但感觉成长速度变慢了" value="' + escapeHTML(d.monthlySatisfaction || '') + '">'
       + '<label>下个月最重要的3个目标</label>'
       + '<textarea id="rv-monthly-next" rows="2" placeholder="1.&#10;2.&#10;3.">' + escapeHTML(d.monthlyNext || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processReview()">📅 生成月度复盘指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processReview()">📅 生成月度复盘分析</button>'
       + '</div>';
   } else if (mode === 'history') {
     var history = JSON.parse(localStorage.getItem('prompt_history') || '[]');
@@ -2326,7 +2499,7 @@ function switchReviewMode(mode) {
       + '<textarea id="rv-annual-nextgoals" rows="3" placeholder="1.&#10;2.&#10;3.">' + escapeHTML(d.annualNextgoals || '') + '</textarea>'
       + '<label>用一个词或一句话总结你的这一年</label>'
       + '<input type="text" id="rv-annual-summary" placeholder="如：从迷茫到清晰的一年 / 量变积累的一年 / 转折之年" value="' + escapeHTML(d.annualSummary || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processReview()">📊 生成年度复盘指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processReview()">📊 生成年度复盘分析</button>'
       + '</div>';
     return;
   }
@@ -2335,12 +2508,12 @@ function switchReviewMode(mode) {
 
 function processReview() {
   var resultBox = document.getElementById('review-result');
-  showSpinner('review-result');
   document.getElementById('review-copy-btn').style.display = 'none';
 
   useOneCredit(function() {
     var mode = currentReviewMode;
-    var raw = '';
+    var systemPrompt = '';
+    var userMessage = '';
     var modeName = '';
 
     if (mode === 'weekly') {
@@ -2351,7 +2524,8 @@ function processReview() {
       var setback = document.getElementById('rv-weekly-setback').value || '【未填】';
       var time = document.getElementById('rv-weekly-time').value || '【未填】';
       var next = document.getElementById('rv-weekly-next').value || '【未填】';
-      raw = '你是一位资深职业教练，擅长通过复盘帮助职场人发现盲点、加速成长。请帮我做本周的深度复盘。\n\n'
+      systemPrompt = '你是一位资深职业教练，擅长通过复盘帮助职场人发现盲点、加速成长。';
+      userMessage = '请帮我做本周的深度复盘。\n\n'
         + '## 本周数据\n- 日期：' + date + '\n- TOP3事项：\n' + top3 + '\n- 最大成就：' + achievement + '\n- 最大挫折：' + setback + '\n- 时间分配：' + time + '\n- 下周最重要的一件事：' + next + '\n\n'
         + '## 请从以下维度复盘\n\n'
         + '### 一、本周总体评价\n- 这周的产出质量如何？（不是问"忙不忙"，是问"有没有推进真正重要的事"）\n- 这周是"高效周"还是"假忙周"？\n\n'
@@ -2369,7 +2543,8 @@ function processReview() {
       var skills = document.getElementById('rv-monthly-skills').value || '【未填】';
       var satisfaction = document.getElementById('rv-monthly-satisfaction').value || '【未填】';
       var mnext = document.getElementById('rv-monthly-next').value || '【未填】';
-      raw = '你是一位资深职业教练兼战略顾问，擅长月度战略复盘。请帮我做' + mdate + '的深度复盘。\n\n'
+      systemPrompt = '你是一位资深职业教练兼战略顾问，擅长月度战略复盘。';
+      userMessage = '请帮我做' + mdate + '的深度复盘。\n\n'
         + '## 本月数据\n- 目标达成率：' + goalrate + '\n- 最大收获：' + gain + '\n- 遇到的困难：' + challenge + '\n- 能力变化：' + skills + '\n- 职业满意度：' + satisfaction + '\n- 下月目标：\n' + mnext + '\n\n'
         + '## 请从以下维度深度复盘\n\n'
         + '### 一、目标与实际差距分析\n- 目标达成率' + goalrate + '背后的真正原因\n- 是目标定高了还是执行力不够？还是外部因素？\n\n'
@@ -2388,7 +2563,8 @@ function processReview() {
         var aSatisfaction = document.getElementById('rv-annual-satisfaction').value || '【未填】';
         var aNextgoals = document.getElementById('rv-annual-nextgoals').value || '【未填】';
         var aSummary = document.getElementById('rv-annual-summary').value || '【未填】';
-        raw = '你是一位资深职业教练兼生涯规划顾问，拥有15年高管辅导经验。请帮我做' + aYear + '年度深度复盘与战略规划。\n\n'
+        systemPrompt = '你是一位资深职业教练兼生涯规划顾问，拥有15年高管辅导经验。';
+        userMessage = '请帮我做' + aYear + '年度深度复盘与战略规划。\n\n'
           + '## 本年数据\n- 角色变化：' + aRole + '\n- TOP5成就：\n' + aTop5 + '\n- 3大教训：\n' + aLessons + '\n- 能力提升：' + aSkillgrowth + '\n- 赛道满意度：' + aSatisfaction + '\n- 年度关键词：' + aSummary + '\n- 下年目标：\n' + aNextgoals + '\n\n'
           + '## 请按以下框架深度复盘\n\n'
           + '### 一、年度成就审视\n- 今年TOP5成就背后有什么共同模式？\n- 哪些成绩是能力的体现？哪些是运气/环境红利？\n- 如果今年只能留一件最重要的成果，是什么？为什么？\n\n'
@@ -2400,11 +2576,7 @@ function processReview() {
           + '## 规则：诚实、深刻、有前瞻性。不要只给"还不错"、"继续加油"这类评价。如果发现我在逃避什么、自欺什么、或者浪费时间在错的方向上，直接指出来。这是年度复盘，不是年终总结报告——重点不是写了多少而是看到了多少。';
       }
 
-    var prompt = wrapPrompt(raw, '职业复盘', modeName);
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    document.getElementById('review-copy-btn').style.display = 'inline-block';
-    showFeedback('review');
+    callDeepSeekAPI(systemPrompt, userMessage, 'review-result', 'review-copy-btn', 'review', '职业复盘', modeName);
     saveReviewData();
   }, function(err) {
     document.getElementById('review-result').classList.remove('show');
@@ -2441,13 +2613,13 @@ function initOnboarding() {
     + '</div>'
     + '<div id="onboard-tab-content"></div>'
     + '<div class="result-box" id="onboard-result"></div>'
-    + '<button class="btn btn-outline" id="onboard-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'onboard-result\')">📋 复制指令</button>'
+    + '<button class="btn btn-outline" id="onboard-copy-btn" style="display:none;margin-top:8px" onclick="copyResult(\'onboard-result\')">📋 复制结果</button>'
     + '<div class="feedback-bar" id="fb-onboard" style="display:none">'
     + '<span class="fb-label">AI回答对你有帮助吗？</span>'
     + '<button class="btn-fb btn-fb-yes" onclick="submitFeedback(\'onboard\',\'入职陪跑\',true,this)">👍 有帮助</button>'
     + '<button class="btn-fb btn-fb-no" onclick="submitFeedback(\'onboard\',\'入职陪跑\',false,this)">👎 没帮助</button>'
     + '</div>'
-    + '<div class="instruction"><strong>怎么用：</strong>入职前选「90天计划」做规划，入职后遇到问题选「风险诊断」或「倦怠诊断」，感觉不对劲选「双向评估」帮你判断这个公司适不适合你。AI给你系统化的融入方案和决策支撑。</div>';
+    + '<div class="instruction"><strong>怎么用：</strong>入职前选「90天计划」做规划，入职后遇到问题选「风险诊断」或「倦怠诊断」，感觉不对劲选「双向评估」。已配置API Key则DeepSeek直接生成方案，未配置则显示指令供手动复制。</div>';
   switchOnboardMode('plan');
 }
 
@@ -2477,7 +2649,7 @@ function switchOnboardMode(mode) {
       + '<textarea id="ob-plan-culture" rows="2" placeholder="如：结果导向、扁平化、决策快、加班文化重...">' + escapeHTML(d.planCulture || '') + '</textarea>'
       + '<label>你最担心的融入风险</label>'
       + '<input type="text" id="ob-plan-worry" placeholder="如：担心老团队不服 / 老板期望太高 / 文化不适应" value="' + escapeHTML(d.planWorry || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">📅 生成融入计划指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">📅 生成融入计划方案</button>'
       + '</div>';
   } else if (mode === 'risk') {
     content.innerHTML = '<div class="card">'
@@ -2489,7 +2661,7 @@ function switchOnboardMode(mode) {
       + '<textarea id="ob-risk-obs" rows="5" placeholder="如：&#10;- 前2周很积极，第3周开始不怎么主动汇报了&#10;- 开了3次团队会议，有2次被下属质疑方案&#10;- 上周承诺的客户拜访计划没按时交&#10;- 跟他聊过一次，他说"还不适应这里的节奏"&#10;- 但在行业里的人脉确实带来了2个潜在客户">' + escapeHTML(d.riskObs || '') + '</textarea>'
       + '<label>你内心真正的担忧</label>'
       + '<input type="text" id="ob-risk-worry" placeholder="如：感觉他能力可能不够，但才7周下结论会不会太早？" value="' + escapeHTML(d.riskWorry || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">⚠️ 生成风险诊断指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">⚠️ 生成风险诊断方案</button>'
       + '</div>';
   } else if (mode === 'burnout') {
     content.innerHTML = '<div class="card">'
@@ -2515,7 +2687,7 @@ function switchOnboardMode(mode) {
       + '<textarea id="ob-bo-ideal" rows="2" placeholder="如：找到有热情的工作 / 换个部门 / 重新找到工作意义">' + escapeHTML(d.boIdeal || '') + '</textarea>'
       + '<label>目前的应对方式（什么有用？什么没用？）</label>'
       + '<textarea id="ob-bo-coping" rows="2" placeholder="如：试过跟老板聊，但他说调整心态；想跳槽又怕跳进另一个坑">' + escapeHTML(d.boCoping || '') + '</textarea>'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">🥱 生成倦怠诊断指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">🥱 生成倦怠诊断方案</button>'
       + '</div>';
   } else if (mode === 'mutual') {
     content.innerHTML = '<div class="card">'
@@ -2535,19 +2707,19 @@ function switchOnboardMode(mode) {
       + '<textarea id="ob-mu-greensignals" rows="2" placeholder="如：团队成员专业能力强 / 老板愿意放手让我做 / 公司业务增长不错...">' + escapeHTML(d.muGreensignals || '') + '</textarea>'
       + '<label>你还有其他选择吗？</label>'
       + '<input type="text" id="ob-mu-alternatives" placeholder="如：有猎头在联系 / 前公司愿意让我回去 / 暂时没有其他选择" value="' + escapeHTML(d.muAlternatives || '') + '">'
-      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">🔄 生成双向评估指令</button>'
+      + '<button class="btn btn-primary btn-lg-full" onclick="processOnboard()">🔄 生成双向评估方案</button>'
       + '</div>';
   }
 }
 
 function processOnboard() {
   var resultBox = document.getElementById('onboard-result');
-  showSpinner('onboard-result');
   document.getElementById('onboard-copy-btn').style.display = 'none';
 
   useOneCredit(function() {
     var mode = currentOnboardMode;
-    var raw = '';
+    var systemPrompt = '';
+    var userMessage = '';
     var modeName = '';
 
     if (mode === 'plan') {
@@ -2558,7 +2730,8 @@ function processOnboard() {
       var battles = document.getElementById('ob-plan-battles').value || '【请填写】';
       var culture = document.getElementById('ob-plan-culture').value || '【请填写】';
       var worry = document.getElementById('ob-plan-worry').value || '无';
-      raw = '你是一位资深企业教练，专门帮助中高管成功度过试用期，服务过500+位高管的入职融入辅导。请帮我设计90天融入计划。\n\n'
+      systemPrompt = '你是一位资深企业教练，专门帮助中高管成功度过试用期，服务过500+位高管的入职融入辅导。';
+      userMessage = '请帮我设计90天融入计划。\n\n'
         + '## 背景\n- 岗位：' + position + '\n- 公司阶段：' + stage + '\n- 团队情况：' + team + '\n- 3场硬仗：\n' + battles + '\n- 文化特征：' + culture + '\n- 最大担忧：' + worry + '\n\n'
         + '## 请按以下框架输出\n\n'
         + '### 一、90天成功定义\n- 这个岗位90天"成功"的具体标准是什么？\n- 什么算"正常"？什么算"超出预期"？什么算"需要关注"？\n\n'
@@ -2576,7 +2749,8 @@ function processOnboard() {
       var rTime = document.getElementById('ob-risk-time').value || '【请填写】';
       var rObs = document.getElementById('ob-risk-obs').value || '【请填写】';
       var rWorry = document.getElementById('ob-risk-worry').value || '【请填写】';
-      raw = '你是一位资深企业教练，专门帮老板处理高管试用期的疑难问题。请帮我做一次风险诊断。\n\n'
+      systemPrompt = '你是一位资深企业教练，专门帮老板处理高管试用期的疑难问题。';
+      userMessage = '请帮我做一次风险诊断。\n\n'
         + '## 情况\n- 岗位：' + rPos + '\n- 已入职：' + rTime + '\n- 观察到的表现：\n' + rObs + '\n- 我的担忧：' + rWorry + '\n\n'
         + '## 请按以下框架输出\n\n'
         + '### 一、表现评估\n- 哪些表现是正常的？（新环境适应期）\n- 哪些需要警惕？\n- 哪些说明这个人可能根本不行？\n- 区分"水土不服"和"能力不足"\n\n'
@@ -2600,7 +2774,8 @@ function processOnboard() {
       if (document.getElementById('ob-bo-sig-growth')?.checked) boSignals.push('能力不再成长吃老本');
       if (document.getElementById('ob-bo-sig-value')?.checked) boSignals.push('价值观冲突');
       if (document.getElementById('ob-bo-sig-envy')?.checked) boSignals.push('羡慕他人想逃离');
-      raw = '你是一位资深职业心理咨询师兼生涯规划师，专门帮助职场人度过倦怠期和职业瓶颈期。请帮我做一次深度的职业倦怠诊断。\n\n'
+      systemPrompt = '你是一位资深职业心理咨询师兼生涯规划师，专门帮助职场人度过倦怠期和职业瓶颈期。';
+      userMessage = '请帮我做一次深度的职业倦怠诊断。\n\n'
         + '## 基本情况\n- 岗位与入职时间：' + boPos + '\n- 倦怠持续时长：' + boDuration + '\n- 已识别的信号：' + (boSignals.length > 0 ? boSignals.join('、') : '未勾选') + '\n\n'
         + '## 具体表现\n' + boDetail + '\n\n'
         + '## 期望状态\n' + boIdeal + '\n\n'
@@ -2646,7 +2821,8 @@ function processOnboard() {
       var muRed = document.getElementById('ob-mu-redflags').value || '无';
       var muGreen = document.getElementById('ob-mu-greensignals').value || '无';
       var muAlt = document.getElementById('ob-mu-alternatives').value || '【请填写】';
-      raw = '你是一位资深职业决策顾问，帮助过3000+人评估工作选择的正确性。请帮我做入职后的双向评估：公司是否适合我？\n\n'
+      systemPrompt = '你是一位资深职业决策顾问，帮助过3000+人评估工作选择的正确性。';
+      userMessage = '请帮我做入职后的双向评估：公司是否适合我？\n\n'
         + '## 基本情况\n- 公司/岗位：' + muPos + '\n- 已入职：' + muTime + '\n\n'
         + '## 入职前期望\n' + muExpect + '\n\n'
         + '## 实际感受与差距\n' + muReality + '\n\n'
@@ -2664,11 +2840,7 @@ function processOnboard() {
 
     }
 
-    var prompt = wrapPrompt(raw, '入职陪跑', modeName);
-    resultBox.classList.remove('loading');
-    resultBox.textContent = prompt;
-    document.getElementById('onboard-copy-btn').style.display = 'inline-block';
-    showFeedback('onboard');
+    callDeepSeekAPI(systemPrompt, userMessage, 'onboard-result', 'onboard-copy-btn', 'onboard', '入职陪跑', modeName);
     saveOnboardData();
   }, function(err) {
     document.getElementById('onboard-result').classList.remove('show');
